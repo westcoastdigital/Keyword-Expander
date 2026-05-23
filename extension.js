@@ -363,6 +363,100 @@ function openEditor() {
                     vscode.window.showInformationMessage('Snippets directory: ' + dir);
                 }
                 break;
+
+            case 'export': {
+                // msg.snippetIds — null means all, array means specific ids
+                const all        = loadAllSnippets();
+                const toExport   = msg.snippetIds
+                    ? all.filter(s => msg.snippetIds.includes(s.id))
+                    : all;
+
+                const defaultName = msg.snippetIds && msg.snippetIds.length === 1
+                    ? toExport[0].name.replace(/[^a-z0-9_-]/gi, '-').toLowerCase() + '.json'
+                    : 'keyword-expander-snippets.json';
+
+                const saveUri = await vscode.window.showSaveDialog({
+                    defaultUri: vscode.Uri.file(path.join(os.homedir(), defaultName)),
+                    filters: { 'JSON': ['json'] },
+                    title: msg.snippetIds ? 'Export Snippet' : 'Export All Snippets',
+                });
+                if (!saveUri) break;
+
+                const exportData = {
+                    keywordExpander: true,
+                    version:         1,
+                    exported:        new Date().toISOString(),
+                    snippets:        toExport.map(s => ({
+                        file:        s.file,
+                        name:        s.name,
+                        prefix:      s.prefix,
+                        body:        s.body,
+                        description: s.description,
+                        scope:       s.scope,
+                    })),
+                };
+                fs.writeFileSync(saveUri.fsPath, JSON.stringify(exportData, null, '\t'), 'utf8');
+                vscode.window.showInformationMessage(
+                    'Keyword Expander: Exported ' + toExport.length + ' snippet(s).'
+                );
+                if (_panel) {
+                    _panel.webview.postMessage({ type: 'exportDone', count: toExport.length });
+                }
+                break;
+            }
+
+            case 'import': {
+                const openUris = await vscode.window.showOpenDialog({
+                    canSelectFiles:   true,
+                    canSelectFolders: false,
+                    canSelectMany:    false,
+                    filters:          { 'JSON': ['json'] },
+                    title:            'Import Snippets',
+                });
+                if (!openUris || !openUris.length) break;
+
+                let importData;
+                try {
+                    importData = parseJsonc(fs.readFileSync(openUris[0].fsPath, 'utf8'));
+                } catch (_) {
+                    vscode.window.showErrorMessage(
+                        'Keyword Expander: Could not parse the selected file.'
+                    );
+                    break;
+                }
+
+                if (!importData.keywordExpander || !Array.isArray(importData.snippets)) {
+                    vscode.window.showErrorMessage(
+                        'Keyword Expander: File is not a valid Keyword Expander export.'
+                    );
+                    break;
+                }
+
+                let count = 0;
+                for (const s of importData.snippets) {
+                    if (!s.file || !s.name || !s.prefix || !s.body) continue;
+                    const filePath = path.join(dir, s.file);
+                    const target   = readSnippetFile(filePath);
+                    const entry    = {
+                        prefix: s.prefix.includes(',') ? s.prefix.split(/,\s*/) : s.prefix,
+                    };
+                    entry.body = s.body.split('\n');
+                    if (s.description) entry.description = s.description;
+                    if (s.scope && s.file.endsWith('.code-snippets')) entry.scope = s.scope;
+                    target[s.name] = entry;
+                    writeSnippetFile(filePath, target);
+                    count++;
+                }
+
+                vscode.window.showInformationMessage(
+                    'Keyword Expander: Imported ' + count + ' snippet(s).'
+                );
+                push();
+                if (_panel) {
+                    _panel.webview.postMessage({ type: 'importDone', count });
+                }
+                break;
+            }
         }
     });
 
@@ -656,6 +750,8 @@ textarea{
 <div class="header">
   <div class="header-title">&#9000;&nbsp; Keyword Expander</div>
   <div class="header-actions">
+    <button class="btn btn-secondary" onclick="importSnippets()">&#8657;&nbsp; Import</button>
+    <button class="btn btn-secondary" onclick="exportAll()">&#8659;&nbsp; Export All</button>
     <button class="btn btn-secondary" onclick="refresh()">&#8635; Refresh</button>
     <button class="btn btn-secondary" onclick="newSnippet()">&#65291; New Snippet</button>
   </div>
@@ -738,6 +834,7 @@ textarea{
         <button class="btn btn-secondary" onclick="cancelEdit()">Cancel</button>
         <button class="btn btn-danger" id="deleteBtn" onclick="deleteCurrentSnippet()" style="display:none">Delete</button>
         <div class="spacer"></div>
+        <button class="btn btn-secondary" id="exportBtn" onclick="exportCurrentSnippet()" style="display:none">&#8659;&nbsp; Export</button>
         <button class="btn btn-secondary" onclick="previewSnippet()">&#9654;&nbsp; Preview in Editor</button>
         <button class="btn" onclick="saveSnippet()">Save Snippet</button>
       </div>
@@ -775,18 +872,27 @@ var state = {
 /* ── Extension messages ─────────────────────────────────────────────── */
 window.addEventListener('message', function(event) {
   var msg = event.data;
-  if (msg.type !== 'load') return;
+  if (msg.type === 'load') {
+    state.snippets    = msg.snippets    || [];
+    state.languages   = msg.languages   || [];
+    state.snippetsDir = msg.snippetsDir || '';
 
-  state.snippets    = msg.snippets    || [];
-  state.languages   = msg.languages   || [];
-  state.snippetsDir = msg.snippetsDir || '';
+    buildLangFilter();
+    buildFileSelect();
+    renderList();
 
-  buildLangFilter();
-  buildFileSelect();
-  renderList();
-
-  var count = state.snippets.length;
-  setStatus(count + ' snippet' + (count !== 1 ? 's' : '') + ' loaded.');
+    var count = state.snippets.length;
+    setStatus(count + ' snippet' + (count !== 1 ? 's' : '') + ' loaded.');
+    return;
+  }
+  if (msg.type === 'exportDone') {
+    showToast('Exported ' + msg.count + ' snippet' + (msg.count !== 1 ? 's' : '') + '.');
+    return;
+  }
+  if (msg.type === 'importDone') {
+    showToast('Imported ' + msg.count + ' snippet' + (msg.count !== 1 ? 's' : '') + '.');
+    return;
+  }
 });
 
 /* ── Build sidebar language filter ─────────────────────────────────── */
@@ -862,6 +968,7 @@ function renderList() {
         '<span class="kw-badge" title="' + esc(s.prefix) + '">' + esc(s.prefix) + '</span>' +
         '<span class="item-name">' + esc(s.name) + '</span>' +
         '<div class="item-actions">' +
+        '<button class="icon-btn exp-btn" title="Export snippet" data-id="' + esc(s.id) + '">&#8659;</button>' +
         '<button class="icon-btn del-btn" title="Delete" data-id="' + esc(s.id) + '">&#128465;</button>' +
         '</div>' +
         '</div>';
@@ -873,6 +980,12 @@ function renderList() {
 
 /* ── List click delegation (avoids inline-onclick quote-escaping bugs) ──── */
 document.getElementById('snippetList').addEventListener('click', function(e) {
+  var expBtn = e.target.closest('.exp-btn');
+  if (expBtn) {
+    e.stopPropagation();
+    exportSnippet(expBtn.dataset.id);
+    return;
+  }
   var delBtn = e.target.closest('.del-btn');
   if (delBtn) {
     e.stopPropagation();
@@ -911,6 +1024,7 @@ function selectSnippet(id) {
   updateScopeVisibility();
 
   document.getElementById('deleteBtn').style.display = '';
+  document.getElementById('exportBtn').style.display = '';
   showForm();
   renderList();
 }
@@ -934,6 +1048,7 @@ function newSnippet() {
   updateScopeVisibility();
 
   document.getElementById('deleteBtn').style.display = 'none';
+  document.getElementById('exportBtn').style.display = 'none';
   showForm();
   renderList();
   document.getElementById('nameInput').focus();
@@ -1047,6 +1162,27 @@ function refresh() {
 /* ── Open snippets folder ────────────────────────────────────────────── */
 function openDir() {
   vscode.postMessage({ type: 'openDir' });
+}
+
+/* ── Export all snippets ─────────────────────────────────────────────── */
+function exportAll() {
+  vscode.postMessage({ type: 'export', snippetIds: null });
+}
+
+/* ── Export a single snippet by id ──────────────────────────────────── */
+function exportSnippet(id) {
+  vscode.postMessage({ type: 'export', snippetIds: [id] });
+}
+
+/* ── Export the snippet currently open in the form ───────────────────── */
+function exportCurrentSnippet() {
+  if (!state.originalFile || !state.originalName) return;
+  exportSnippet(state.originalFile + '::' + state.originalName);
+}
+
+/* ── Import snippets from file ───────────────────────────────────────── */
+function importSnippets() {
+  vscode.postMessage({ type: 'import' });
 }
 
 /* ── Textarea Tab key ────────────────────────────────────────────────── */
