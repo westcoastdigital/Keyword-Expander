@@ -123,7 +123,9 @@ The body follows VS Code's standard [snippet format](https://code.visualstudio.c
 
 ## Examples
 
-### PHP theme header
+### Plugin scaffolding
+
+#### PHP theme header
 
 ```
 Name:     WordPress Theme Header
@@ -148,7 +150,7 @@ Body:
 $0
 ```
 
-### PHP plugin header
+#### PHP plugin header
 
 ```
 Name:     WordPress Plugin Header
@@ -176,7 +178,7 @@ define('${5:SIMPLI_PLUGIN}_URL', plugin_dir_url(__FILE__));
 $0
 ```
 
-### WordPress singleton class
+#### Singleton plugin class
 
 ```
 Name:     WordPress Singleton Class
@@ -207,7 +209,34 @@ ${1:ClassName}::get_instance();
 endif;
 ```
 
-### WordPress action hook
+#### Abort if accessed directly
+
+```
+Name:     Abort if accessed directly
+Prefix:   abspath
+Language: PHP
+Body:
+if ( ! defined( 'ABSPATH' ) ) exit;
+```
+
+#### Plugin constants
+
+```
+Name:     Plugin constants
+Prefix:   pluginconst
+Language: PHP
+Body:
+define( '${1:MYPLUGIN}_VERSION',   '${2:1.0.0}' );
+define( '${1:MYPLUGIN}_DIR',       plugin_dir_path( __FILE__ ) );
+define( '${1:MYPLUGIN}_URL',       plugin_dir_url( __FILE__ ) );
+define( '${1:MYPLUGIN}_BASENAME',  plugin_basename( __FILE__ ) );
+```
+
+---
+
+### Hooks & filters
+
+#### WordPress action hook
 
 ```
 Name:     WordPress Action Hook
@@ -224,91 +253,7 @@ if(!function_exists(${1:callback_function})) {
 }
 ```
 
----
-
-## Editor panel shortcuts
-
-| Shortcut | Action |
-|---|---|
-| `Ctrl+S` / `Cmd+S` | Save snippet |
-| `Ctrl+N` / `Cmd+N` | New snippet |
-| `Ctrl+R` / `Cmd+R` | Refresh from disk |
-| `Escape` | Cancel / close form |
-| `Tab` in body | Inserts 4 spaces |
-
----
-
-## Snippets directory
-
-Snippets are saved to your VS Code user snippets folder:
-
-| Platform | Path |
-|---|---|
-| Windows | `%APPDATA%\Code\User\snippets\` |
-| macOS | `~/Library/Application Support/Code/User/snippets/` |
-| Linux | `~/.config/Code/User/snippets/` |
-
-Language-specific snippets are stored in files like `php.json` and `javascript.json`. Global snippets go in `global.code-snippets` and optionally use the **Scope** field to restrict which languages they appear in.
-
-Click **Open Snippets Folder** in the editor footer to open the directory directly.
-
-VS Code Insiders is detected automatically and uses the `Code - Insiders` path.
-
-### WordPress singleton class with init
-
-```
-Name:     WordPress Singleton Class with Init
-Prefix:   wpclass
-Language: PHP
-Body:
-class ${1:MyPlugin} {
-
-    private static $instance = null;
-
-    public static function get_instance() {
-        if ( null === self::$instance ) {
-            self::$instance = new self();
-        }
-        return self::$instance;
-    }
-
-    private function __construct() {
-        add_action( 'init', [ $this, 'init' ] );
-        $0
-    }
-
-    public function init() {}
-}
-
-${1:MyPlugin}::get_instance();
-```
-
-### Abort if accessed directly
-
-```
-Name:     Abort if accessed directly
-Prefix:   abspath
-Language: PHP
-Body:
-if ( ! defined( 'ABSPATH' ) ) exit;
-```
-
-### Plugin constants
-
-```
-Name:     Plugin constants
-Prefix:   pluginconst
-Language: PHP
-Body:
-define( '${1:MYPLUGIN}_VERSION',   '${2:1.0.0}' );
-define( '${1:MYPLUGIN}_DIR',       plugin_dir_path( __FILE__ ) );
-define( '${1:MYPLUGIN}_URL',       plugin_dir_url( __FILE__ ) );
-define( '${1:MYPLUGIN}_BASENAME',  plugin_basename( __FILE__ ) );
-```
-
----
-
-### add_action (class method)
+#### add_action (class method)
 
 ```
 Name:     add_action (class method)
@@ -318,7 +263,7 @@ Body:
 add_action( '${1:hook_name}', [ $this, '${2:method_name}' ]${3:, 10, 1} );
 ```
 
-### add_filter (class method)
+#### add_filter (class method)
 
 ```
 Name:     add_filter (class method)
@@ -328,7 +273,7 @@ Body:
 add_filter( '${1:hook_name}', [ $this, '${2:method_name}' ]${3:, 10, 1} );
 ```
 
-### Standalone filter callback
+#### Standalone filter callback
 
 ```
 Name:     Standalone filter callback
@@ -345,7 +290,9 @@ function ${2:my_filter}( $${3:value} ) {
 
 ---
 
-### Enqueue script with localize
+### Enqueue
+
+#### Enqueue script with localize
 
 ```
 Name:     Enqueue script with localize
@@ -369,7 +316,7 @@ function ${1:prefix}_enqueue_scripts() {
 }
 ```
 
-### Enqueue stylesheet
+#### Enqueue stylesheet
 
 ```
 Name:     Enqueue stylesheet
@@ -390,7 +337,9 @@ function ${1:prefix}_enqueue_styles() {
 
 ---
 
-### AJAX handler (front + admin)
+### AJAX
+
+#### AJAX handler (front + admin)
 
 ```
 Name:     AJAX handler (front + admin)
@@ -409,7 +358,7 @@ function ${2:handle_ajax}() {
 }
 ```
 
-### fetch() AJAX call to WordPress
+#### fetch() AJAX call to WordPress
 
 ```
 Name:     fetch() AJAX call to WordPress
@@ -434,7 +383,9 @@ fetch( MyPlugin.ajaxurl, {
 
 ---
 
-### Register custom post type
+### Custom post types
+
+#### Register custom post type
 
 ```
 Name:     Register custom post type
@@ -460,7 +411,7 @@ function ${1:prefix}_register_${2:cpt}() {
 }
 ```
 
-### Register custom taxonomy
+#### Register custom taxonomy
 
 ```
 Name:     Register custom taxonomy
@@ -484,7 +435,9 @@ function ${1:prefix}_register_${2:taxonomy}() {
 
 ---
 
-### Add admin menu page
+### Admin UI
+
+#### Add admin menu page
 
 ```
 Name:     Add admin menu page
@@ -513,7 +466,7 @@ function ${6:render_page}() {
 }
 ```
 
-### Register settings field
+#### Register settings field
 
 ```
 Name:     Register settings field
@@ -549,7 +502,9 @@ function ${9:render_field}() {
 
 ---
 
-### ACF get_field with fallback
+### ACF
+
+#### get_field with fallback
 
 ```
 Name:     ACF get_field with fallback
@@ -559,7 +514,7 @@ Body:
 \$${1:value} = get_field( '${2:field_name}' ) ?: '${3:default}';
 ```
 
-### ACF text field (escaped output)
+#### Text field (escaped output)
 
 ```
 Name:     ACF text field (escaped output)
@@ -571,7 +526,7 @@ Body:
 <?php endif; ?>
 ```
 
-### ACF image field
+#### Image field
 
 ```
 Name:     ACF image field
@@ -588,7 +543,7 @@ if ( \$image ) : ?>
 <?php endif; ?>
 ```
 
-### ACF repeater field loop
+#### Repeater field loop
 
 ```
 Name:     ACF repeater field loop
@@ -603,7 +558,7 @@ Body:
 <?php endif; ?>
 ```
 
-### ACF flexible content loop
+#### Flexible content loop
 
 ```
 Name:     ACF flexible content loop
@@ -623,7 +578,7 @@ Body:
 <?php endif; ?>
 ```
 
-### ACF options page field
+#### Options page field
 
 ```
 Name:     ACF options page field
@@ -633,7 +588,7 @@ Body:
 get_field( '${1:field_name}', 'option' );
 ```
 
-### ACF link field
+#### Link field
 
 ```
 Name:     ACF link field
@@ -649,7 +604,7 @@ if ( \$link ) : ?>
 <?php endif; ?>
 ```
 
-### Register ACF field group (PHP)
+#### Register field group (PHP)
 
 ```
 Name:     Register ACF field group (PHP)
@@ -679,7 +634,9 @@ function ${1:prefix}_register_fields() {
 
 ---
 
-### WooCommerce get product price
+### WooCommerce
+
+#### Get product price
 
 ```
 Name:     WooCommerce get product price
@@ -691,7 +648,7 @@ global \$product;
 \$formatted = wc_price( \$price );
 ```
 
-### WooCommerce shop columns
+#### Shop columns
 
 ```
 Name:     WooCommerce shop columns
@@ -705,7 +662,7 @@ function ${1:prefix}_shop_columns() {
 }
 ```
 
-### WooCommerce custom checkout field
+#### Custom checkout field
 
 ```
 Name:     WooCommerce custom checkout field
@@ -741,7 +698,7 @@ function ${1:prefix}_save_checkout_field( \$order_id ) {
 }
 ```
 
-### WooCommerce save order meta
+#### Save order meta
 
 ```
 Name:     WooCommerce save order meta
@@ -759,7 +716,9 @@ function ${1:prefix}_save_order_meta( \$order_id ) {
 
 ---
 
-### Theme setup function
+### Theme
+
+#### Theme setup function
 
 ```
 Name:     Theme setup function
@@ -781,7 +740,7 @@ function ${1:prefix}_setup() {
 }
 ```
 
-### Register widget area / sidebar
+#### Register widget area / sidebar
 
 ```
 Name:     Register widget area / sidebar
@@ -802,7 +761,7 @@ function ${1:prefix}_widgets_init() {
 }
 ```
 
-### Custom WP_Query loop
+#### Custom WP_Query loop
 
 ```
 Name:     Custom WP_Query loop
@@ -832,3 +791,33 @@ else :
     echo '<p>' . esc_html__( 'No results found.', '${5:text-domain}' ) . '</p>';
 endif;
 ```
+
+---
+
+## Editor panel shortcuts
+
+| Shortcut | Action |
+|---|---|
+| `Ctrl+S` / `Cmd+S` | Save snippet |
+| `Ctrl+N` / `Cmd+N` | New snippet |
+| `Ctrl+R` / `Cmd+R` | Refresh from disk |
+| `Escape` | Cancel / close form |
+| `Tab` in body | Inserts 4 spaces |
+
+---
+
+## Snippets directory
+
+Snippets are saved to your VS Code user snippets folder:
+
+| Platform | Path |
+|---|---|
+| Windows | `%APPDATA%\Code\User\snippets\` |
+| macOS | `~/Library/Application Support/Code/User/snippets/` |
+| Linux | `~/.config/Code/User/snippets/` |
+
+Language-specific snippets are stored in files like `php.json` and `javascript.json`. Global snippets go in `global.code-snippets` and optionally use the **Scope** field to restrict which languages they appear in.
+
+Click **Open Snippets Folder** in the editor footer to open the directory directly.
+
+VS Code Insiders is detected automatically and uses the `Code - Insiders` path.
