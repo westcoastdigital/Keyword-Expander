@@ -1,0 +1,23 @@
+{
+	"keywordExpander": true,
+	"version": 1,
+	"exported": "2025-05-24T00:00:00.000Z",
+	"snippets": [
+		{
+			"file": "php.json",
+			"name": "Enqueue script with localize",
+			"prefix": "enqscript",
+			"description": "wp_enqueue_script with wp_localize_script for AJAX",
+			"scope": "",
+			"body": "add_action( 'wp_enqueue_scripts', '${1:prefix}_enqueue_scripts' );\n\nfunction ${1:prefix}_enqueue_scripts() {\n    wp_enqueue_script(\n        '${2:handle}',\n        plugin_dir_url( __FILE__ ) . 'js/${3:script}.js',\n        [ 'jquery' ],\n        ${4:MY_PLUGIN_VERSION},\n        true\n    );\n    wp_localize_script( '${2:handle}', '${5:MyPlugin}', [\n        'ajaxurl' => admin_url( 'admin-ajax.php' ),\n        'nonce'   => wp_create_nonce( '${6:my-nonce}' ),\n    ] );\n}"
+		},
+		{
+			"file": "php.json",
+			"name": "Enqueue stylesheet",
+			"prefix": "enqstyle",
+			"description": "wp_enqueue_style for a plugin or theme stylesheet",
+			"scope": "",
+			"body": "add_action( 'wp_enqueue_scripts', '${1:prefix}_enqueue_styles' );\n\nfunction ${1:prefix}_enqueue_styles() {\n    wp_enqueue_style(\n        '${2:handle}',\n        plugin_dir_url( __FILE__ ) . 'css/${3:style}.css',\n        [],\n        ${4:MY_PLUGIN_VERSION}\n    );\n}"
+		}
+	]
+}

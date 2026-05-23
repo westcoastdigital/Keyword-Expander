@@ -1,0 +1,39 @@
+{
+	"keywordExpander": true,
+	"version": 1,
+	"exported": "2025-05-24T00:00:00.000Z",
+	"snippets": [
+		{
+			"file": "php.json",
+			"name": "WordPress Action Hook",
+			"prefix": "wphook",
+			"description": "add_action with a wrapped function_exists guard",
+			"scope": "",
+			"body": "if(!function_exists(${1:callback_function})) {\n\n    add_action( '${2:hook_name}', '${1:callback_function}' );\n    function ${1:callback_function}() {\n\t    $0\n    }\n\n}"
+		},
+		{
+			"file": "php.json",
+			"name": "add_action (class method)",
+			"prefix": "addaction",
+			"description": "add_action targeting a class method",
+			"scope": "",
+			"body": "add_action( '${1:hook_name}', [ \\$this, '${2:method_name}' ]${3:, 10, 1} );"
+		},
+		{
+			"file": "php.json",
+			"name": "add_filter (class method)",
+			"prefix": "addfilter",
+			"description": "add_filter targeting a class method",
+			"scope": "",
+			"body": "add_filter( '${1:hook_name}', [ \\$this, '${2:method_name}' ]${3:, 10, 1} );"
+		},
+		{
+			"file": "php.json",
+			"name": "Standalone filter callback",
+			"prefix": "wpfilter",
+			"description": "add_filter with a standalone callback function",
+			"scope": "",
+			"body": "add_filter( '${1:hook_name}', '${2:my_filter}' );\n\nfunction ${2:my_filter}( $${3:value} ) {\n    $0\n    return $${3:value};\n}"
+		}
+	]
+}

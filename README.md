@@ -104,6 +104,75 @@ Once on, any snippet you create or edit is synced to all your machines automatic
 
 ---
 
+## Export & Import
+
+Keyword Expander can export your snippets to a portable JSON file — useful for backups, moving to a new machine, or sharing a snippet collection with your team.
+
+### Exporting
+
+| What | How |
+|---|---|
+| **All snippets** | Click **↓ Export All** in the top-right of the editor panel |
+| **One snippet** | Hover a snippet in the sidebar and click the **↓** icon, or open it in the form and click **↓ Export** |
+
+VS Code's native save dialog opens so you can choose where to save the file. Exporting all snippets defaults to `keyword-expander-snippets.json`; exporting a single snippet uses the snippet name as the filename.
+
+### Importing
+
+Click **↑ Import** in the top-right of the editor panel and select a `.json` file previously exported from Keyword Expander. Snippets are merged into your existing collection — snippets with the same name and language file are overwritten, everything else is left untouched. The list refreshes automatically after import.
+
+### Export file format
+
+The export is plain JSON and easy to read or edit by hand:
+
+```json
+{
+    "keywordExpander": true,
+    "version": 1,
+    "exported": "2025-01-15T09:30:00.000Z",
+    "snippets": [
+        {
+            "file": "php.json",
+            "name": "WordPress Plugin Header",
+            "prefix": "plugin",
+            "body": "<?php\n/*\nPlugin Name: ${1:My Plugin}\n...\n*/\n$0",
+            "description": "Standard WP plugin file header",
+            "scope": ""
+        }
+    ]
+}
+```
+
+### Example files
+
+The `examples/` folder in this repository contains ready-to-import snippet packs covering every example in this README. Click **↑ Import** and select any file to load that group instantly — no manual typing required.
+
+| File | Snippets | What's inside |
+|---|---|---|
+| `plugin-scaffolding.json` | 5 | Theme header, plugin header, singleton class, `abspath` guard, plugin constants |
+| `hooks-filters.json` | 4 | `add_action`, `add_filter`, class-method variants, standalone filter callback |
+| `enqueue.json` | 2 | Script with `wp_localize_script`, stylesheet |
+| `ajax.json` | 2 | PHP AJAX handler (front + admin), `fetch()` JS call |
+| `custom-post-types.json` | 2 | Register CPT, register taxonomy |
+| `admin-ui.json` | 2 | Admin menu page, Settings API field |
+| `acf.json` | 8 | `get_field`, text, image, repeater, flexible content, options, link, field group registration |
+| `woocommerce.json` | 4 | Product price, shop columns, custom checkout field, save order meta |
+| `theme.json` | 3 | Theme setup, register sidebar, `WP_Query` loop |
+
+You can import as many packs as you like — they merge, so importing a second pack won't remove snippets from the first. Any snippet whose name and language file match an existing one will overwrite it.
+
+### Common workflows
+
+**Backing up your snippets** — Export All, then commit the file to a Git repo or drop it in cloud storage alongside your dotfiles.
+
+**Sharing with a teammate** — Export All (or pick individual snippets), send the file, they import it. Their existing snippets are not affected.
+
+**Moving to a new machine** — Export All on the old machine, install Keyword Expander on the new one, then Import the file. If you use VS Code Settings Sync the snippets will already be there, but export/import is a good manual fallback.
+
+**Building a team library** — Keep a shared `team-snippets.json` in your project or wiki repo. Anyone can import it to get the standard set of hooks, patterns, and boilerplate for the project.
+
+---
+
 ## Body syntax
 
 The body follows VS Code's standard [snippet format](https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax).

@@ -1,0 +1,23 @@
+{
+	"keywordExpander": true,
+	"version": 1,
+	"exported": "2025-05-24T00:00:00.000Z",
+	"snippets": [
+		{
+			"file": "php.json",
+			"name": "Register custom post type",
+			"prefix": "regcpt",
+			"description": "register_post_type with common labels and arguments",
+			"scope": "",
+			"body": "add_action( 'init', '${1:prefix}_register_${2:cpt}' );\n\nfunction ${1:prefix}_register_${2:cpt}() {\n    register_post_type( '${2:cpt}', [\n        'labels'  => [\n            'name'          => __( '${3:Items}',  '${4:text-domain}' ),\n            'singular_name' => __( '${5:Item}',   '${4:text-domain}' ),\n            'add_new_item'  => __( 'Add new ${5:Item}', '${4:text-domain}' ),\n        ],\n        'public'            => true,\n        'show_in_rest'      => true,\n        'has_archive'       => true,\n        'supports'          => [ 'title', 'editor', 'thumbnail' ],\n        'menu_icon'         => 'dashicons-${6:admin-post}',\n        'rewrite'           => [ 'slug' => '${7:items}' ],\n    ] );\n}"
+		},
+		{
+			"file": "php.json",
+			"name": "Register custom taxonomy",
+			"prefix": "regtax",
+			"description": "register_taxonomy with hierarchical support and REST API enabled",
+			"scope": "",
+			"body": "add_action( 'init', '${1:prefix}_register_${2:taxonomy}' );\n\nfunction ${1:prefix}_register_${2:taxonomy}() {\n    register_taxonomy( '${2:taxonomy}', '${3:post_type}', [\n        'labels'       => [\n            'name'          => __( '${4:Categories}', '${5:text-domain}' ),\n            'singular_name' => __( '${6:Category}',   '${5:text-domain}' ),\n        ],\n        'hierarchical' => true,\n        'show_in_rest' => true,\n        'rewrite'      => [ 'slug' => '${7:category}' ],\n    ] );\n}"
+		}
+	]
+}

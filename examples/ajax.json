@@ -1,0 +1,23 @@
+{
+	"keywordExpander": true,
+	"version": 1,
+	"exported": "2025-05-24T00:00:00.000Z",
+	"snippets": [
+		{
+			"file": "php.json",
+			"name": "AJAX handler (front + admin)",
+			"prefix": "wpajax",
+			"description": "WordPress AJAX handler registered for logged-in and guest users",
+			"scope": "",
+			"body": "add_action( 'wp_ajax_${1:action_name}',        '${2:handle_ajax}' );\nadd_action( 'wp_ajax_nopriv_${1:action_name}', '${2:handle_ajax}' );\n\nfunction ${2:handle_ajax}() {\n    check_ajax_referer( '${3:my-nonce}', 'nonce' );\n\n    $0\n\n    wp_send_json_success( [] );\n}"
+		},
+		{
+			"file": "javascript.json",
+			"name": "fetch() AJAX call to WordPress",
+			"prefix": "wpfetch",
+			"description": "fetch() POST to WordPress admin-ajax.php with nonce",
+			"scope": "",
+			"body": "fetch( MyPlugin.ajaxurl, {\n    method: 'POST',\n    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },\n    body: new URLSearchParams({\n        action: '${1:action_name}',\n        nonce:  MyPlugin.nonce,\n        $0\n    }),\n} )\n.then( r => r.json() )\n.then( data => {\n    if ( ! data.success ) return;\n    console.log( data.data );\n} );"
+		}
+	]
+}

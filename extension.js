@@ -742,6 +742,28 @@ textarea{
 ::-webkit-scrollbar-track{background:transparent;}
 ::-webkit-scrollbar-thumb{background:var(--vscode-scrollbarSlider-background);border-radius:3px;}
 ::-webkit-scrollbar-thumb:hover{background:var(--vscode-scrollbarSlider-hoverBackground);}
+
+/* ── Confirm dialog ───────────────────────────────────────────── */
+.confirm-overlay{
+  position:fixed;inset:0;
+  background:rgba(0,0,0,0.45);
+  display:flex;align-items:center;justify-content:center;
+  z-index:1000;
+}
+.confirm-box{
+  background:var(--vscode-editor-background);
+  border:1px solid var(--vscode-panel-border);
+  border-radius:4px;padding:20px 22px 16px;
+  min-width:270px;max-width:380px;
+  display:flex;flex-direction:column;gap:16px;
+  box-shadow:0 4px 20px rgba(0,0,0,0.4);
+}
+.confirm-box p{font-size:13px;line-height:1.5;word-break:break-word;}
+.confirm-btns{display:flex;gap:8px;justify-content:flex-end;}
+
+/* ── Custom filename row ──────────────────────────────────────── */
+.custom-file-row{display:none;}
+.custom-file-row.visible{display:flex;}
 </style>
 </head>
 <body>
@@ -797,6 +819,12 @@ textarea{
         <div class="form-group">
           <label for="fileSelect">Language / File</label>
           <select id="fileSelect" onchange="onFileChange()"></select>
+        </div>
+
+        <div class="form-group full custom-file-row" id="customFileRow">
+          <label for="customFileInput">Custom filename <span class="label-hint">(e.g. myproject.code-snippets)</span></label>
+          <input type="text" id="customFileInput" placeholder="myproject.code-snippets" autocomplete="off" spellcheck="false"
+            onkeydown="customFileKeydown(event)" onblur="applyCustomFile()">
         </div>
 
         <div class="form-group">
@@ -1103,19 +1131,36 @@ function deleteCurrentSnippet() {
   deleteSnippet(state.originalFile + '::' + state.originalName);
 }
 
+/* ── Inline confirm dialog ────────────────────────────────────────────── */
+var _confirmCallback = null;
+function showConfirm(msg, onOk) {
+  document.getElementById('confirmMsg').textContent = msg;
+  document.getElementById('confirmOverlay').style.display = 'flex';
+  _confirmCallback = onOk;
+  document.getElementById('confirmOkBtn').focus();
+}
+function confirmOk() {
+  document.getElementById('confirmOverlay').style.display = 'none';
+  if (_confirmCallback) { _confirmCallback(); _confirmCallback = null; }
+}
+function confirmCancel() {
+  document.getElementById('confirmOverlay').style.display = 'none';
+  _confirmCallback = null;
+}
+
 /* ── Delete by id ────────────────────────────────────────────────────── */
 function deleteSnippet(id) {
   var s = state.snippets.find(function(x) { return x.id === id; });
   if (!s) return;
-  if (!confirm('Delete snippet "' + s.name + '"?')) return;
 
-  vscode.postMessage({ type: 'delete', file: s.file, name: s.name });
-
-  if (state.selectedId === id) {
-    state.selectedId = null;
-    hideForm();
-  }
-  showToast('"' + s.name + '" deleted.');
+  showConfirm('Delete snippet "' + s.name + '"?', function() {
+    vscode.postMessage({ type: 'delete', file: s.file, name: s.name });
+    if (state.selectedId === id) {
+      state.selectedId = null;
+      hideForm();
+    }
+    showToast('"' + s.name + '" deleted.');
+  });
 }
 
 /* ── Preview in active editor ────────────────────────────────────────── */
@@ -1128,19 +1173,47 @@ function previewSnippet() {
 /* ── File select change ──────────────────────────────────────────────── */
 function onFileChange() {
   var file = document.getElementById('fileSelect').value;
+  var customRow = document.getElementById('customFileRow');
   if (file === '__custom__') {
-    var custom = prompt('Enter the snippet filename (e.g. myproject.code-snippets):');
-    if (custom && custom.trim()) {
-      var opt = document.createElement('option');
-      opt.value = custom.trim();
-      opt.textContent = custom.trim();
-      document.getElementById('fileSelect').appendChild(opt);
-      document.getElementById('fileSelect').value = custom.trim();
-    } else {
-      document.getElementById('fileSelect').selectedIndex = 0;
-    }
+    customRow.classList.add('visible');
+    var input = document.getElementById('customFileInput');
+    input.value = '';
+    input.focus();
+  } else {
+    customRow.classList.remove('visible');
   }
   updateScopeVisibility();
+}
+
+function customFileKeydown(e) {
+  if (e.key === 'Enter') { e.preventDefault(); applyCustomFile(); }
+  if (e.key === 'Escape') {
+    document.getElementById('customFileRow').classList.remove('visible');
+    document.getElementById('fileSelect').selectedIndex = 0;
+    updateScopeVisibility();
+  }
+}
+
+function applyCustomFile() {
+  var input = document.getElementById('customFileInput');
+  var val   = input.value.trim();
+  var sel   = document.getElementById('fileSelect');
+  if (val) {
+    // Add or reuse the option
+    var existing = Array.from(sel.options).find(function(o) { return o.value === val; });
+    if (!existing) {
+      var opt = document.createElement('option');
+      opt.value = val; opt.textContent = val;
+      sel.appendChild(opt);
+    }
+    sel.value = val;
+    document.getElementById('customFileRow').classList.remove('visible');
+    updateScopeVisibility();
+  } else {
+    sel.selectedIndex = 0;
+    document.getElementById('customFileRow').classList.remove('visible');
+    updateScopeVisibility();
+  }
 }
 
 function updateScopeVisibility() {
@@ -1198,7 +1271,12 @@ function textareaTabKey(e) {
 /* ── Global keyboard shortcuts ───────────────────────────────────────── */
 document.addEventListener('keydown', function(e) {
   var mod = e.ctrlKey || e.metaKey;
-  if (e.key === 'Escape')     { cancelEdit(); return; }
+  if (e.key === 'Escape') {
+    if (document.getElementById('confirmOverlay').style.display !== 'none') {
+      confirmCancel(); return;
+    }
+    cancelEdit(); return;
+  }
   if (mod && e.key === 's')   { e.preventDefault(); saveSnippet(); return; }
   if (mod && e.key === 'n')   { e.preventDefault(); newSnippet(); return; }
   if (mod && e.key === 'r')   { e.preventDefault(); refresh(); return; }
@@ -1243,6 +1321,17 @@ function setStatus(msg, isError) {
 /* ── Ready ───────────────────────────────────────────────────────────── */
 vscode.postMessage({ type: 'ready' });
 </script>
+<!-- Confirm dialog -->
+<div class="confirm-overlay" id="confirmOverlay" style="display:none">
+  <div class="confirm-box">
+    <p id="confirmMsg"></p>
+    <div class="confirm-btns">
+      <button class="btn btn-secondary" onclick="confirmCancel()">Cancel</button>
+      <button class="btn btn-danger" id="confirmOkBtn" onclick="confirmOk()">Delete</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>`;
 }

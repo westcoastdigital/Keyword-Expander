@@ -1,0 +1,23 @@
+{
+	"keywordExpander": true,
+	"version": 1,
+	"exported": "2025-05-24T00:00:00.000Z",
+	"snippets": [
+		{
+			"file": "php.json",
+			"name": "Add admin menu page",
+			"prefix": "adminpage",
+			"description": "add_menu_page with a render callback",
+			"scope": "",
+			"body": "add_action( 'admin_menu', '${1:prefix}_admin_menu' );\n\nfunction ${1:prefix}_admin_menu() {\n    add_menu_page(\n        __( '${2:Page Title}', '${3:text-domain}' ),\n        __( '${4:Menu Label}', '${3:text-domain}' ),\n        'manage_options',\n        '${5:page-slug}',\n        '${6:render_page}',\n        'dashicons-${7:admin-generic}',\n        25\n    );\n}\n\nfunction ${6:render_page}() {\n    if ( ! current_user_can( 'manage_options' ) ) return;\n    echo '<div class=\"wrap\"><h1>' . esc_html( get_admin_page_title() ) . '</h1>';\n    $0\n    echo '</div>';\n}"
+		},
+		{
+			"file": "php.json",
+			"name": "Register settings field",
+			"prefix": "settings",
+			"description": "Settings API — register_setting, add_settings_section and add_settings_field",
+			"scope": "",
+			"body": "add_action( 'admin_init', '${1:prefix}_register_settings' );\n\nfunction ${1:prefix}_register_settings() {\n    register_setting( '${2:option_group}', '${3:option_name}' );\n\n    add_settings_section(\n        '${4:section_id}',\n        __( '${5:Section Title}', '${6:text-domain}' ),\n        '__return_null',\n        '${2:option_group}'\n    );\n\n    add_settings_field(\n        '${7:field_id}',\n        __( '${8:Field Label}', '${6:text-domain}' ),\n        '${9:render_field}',\n        '${2:option_group}',\n        '${4:section_id}'\n    );\n}\n\nfunction ${9:render_field}() {\n    $val = get_option( '${3:option_name}', '' );\n    echo '<input type=\"text\" name=\"${3:option_name}\" value=\"' . esc_attr( $val ) . '\">';\n}"
+		}
+	]
+}

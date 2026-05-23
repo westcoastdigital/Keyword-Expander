@@ -1,0 +1,39 @@
+{
+	"keywordExpander": true,
+	"version": 1,
+	"exported": "2025-05-24T00:00:00.000Z",
+	"snippets": [
+		{
+			"file": "php.json",
+			"name": "WooCommerce get product price",
+			"prefix": "wooprice",
+			"description": "Get and format the current product price",
+			"scope": "",
+			"body": "global \\$product;\n\\$price     = \\$product->get_price();\n\\$formatted = wc_price( \\$price );"
+		},
+		{
+			"file": "php.json",
+			"name": "WooCommerce shop columns",
+			"prefix": "woocol",
+			"description": "Filter the number of products per row on the shop archive",
+			"scope": "",
+			"body": "add_filter( 'loop_shop_columns', '${1:prefix}_shop_columns' );\n\nfunction ${1:prefix}_shop_columns() {\n    return ${2:3};\n}"
+		},
+		{
+			"file": "php.json",
+			"name": "WooCommerce custom checkout field",
+			"prefix": "woocheckout",
+			"description": "Add, validate and save a custom field on the WooCommerce checkout",
+			"scope": "",
+			"body": "add_action( 'woocommerce_after_order_notes', '${1:prefix}_checkout_field' );\n\nfunction ${1:prefix}_checkout_field( \\$checkout ) {\n    woocommerce_form_field( '${2:field_name}', [\n        'type'        => 'text',\n        'class'       => [ 'form-row-wide' ],\n        'label'       => __( '${3:Field Label}', '${4:text-domain}' ),\n        'placeholder' => '${5:Placeholder}',\n        'required'    => ${6:false},\n    ], \\$checkout->get_value( '${2:field_name}' ) );\n}\n\nadd_action( 'woocommerce_checkout_process', '${1:prefix}_checkout_field_validate' );\n\nfunction ${1:prefix}_checkout_field_validate() {\n    if ( empty( \\$_POST['${2:field_name}'] ) && ${6:false} ) {\n        wc_add_notice( __( '${7:Please fill in this field.}', '${4:text-domain}' ), 'error' );\n    }\n}\n\nadd_action( 'woocommerce_checkout_update_order_meta', '${1:prefix}_save_checkout_field' );\n\nfunction ${1:prefix}_save_checkout_field( \\$order_id ) {\n    if ( ! empty( \\$_POST['${2:field_name}'] ) ) {\n        update_post_meta( \\$order_id, '${2:field_name}', sanitize_text_field( \\$_POST['${2:field_name}'] ) );\n    }\n}"
+		},
+		{
+			"file": "php.json",
+			"name": "WooCommerce save order meta",
+			"prefix": "woometa",
+			"description": "Save a custom value to order meta on checkout",
+			"scope": "",
+			"body": "add_action( 'woocommerce_checkout_update_order_meta', '${1:prefix}_save_order_meta' );\n\nfunction ${1:prefix}_save_order_meta( \\$order_id ) {\n    if ( isset( \\$_POST['${2:field_name}'] ) ) {\n        update_post_meta( \\$order_id, '${2:field_name}', sanitize_text_field( \\$_POST['${2:field_name}'] ) );\n    }\n}"
+		}
+	]
+}

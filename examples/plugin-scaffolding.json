@@ -1,0 +1,47 @@
+{
+	"keywordExpander": true,
+	"version": 1,
+	"exported": "2025-05-24T00:00:00.000Z",
+	"snippets": [
+		{
+			"file": "php.json",
+			"name": "WordPress Theme Header",
+			"prefix": "theme",
+			"description": "Standard WordPress theme file header",
+			"scope": "",
+			"body": "/**\n * Theme Name: ${1:SimpliWeb Theme}\n * Theme URI: https://github.com/westcoastdigital\n * Description:  ${2:Describe your theme here}\n * Version: ${3:1.0.0}\n * Author: SimpliWeb\n * Author URI: https://simpliweb.com.au\n * Text Domain: ${4:simpliweb}\n * Domain Path: /assets/lang\n * Tested up to: 6.4\n * Requires at least: 6.2\n * Requires PHP: 7.4\n * License: GNU General Public License v2.0 or later\n * License URI: https://www.gnu.org/licenses/gpl-2.0.html\n */\n$0"
+		},
+		{
+			"file": "php.json",
+			"name": "WordPress Plugin Header",
+			"prefix": "plugin",
+			"description": "Standard WordPress plugin file header with constants",
+			"scope": "",
+			"body": "<?php\n/*\nPlugin Name:  ${1:SimpliWeb Plugin}\nPlugin URI:   https://gist.github.com/westcoastdigital\nDescription:  ${2:Describe what the plugin does here}\nVersion:      ${3:1.0.0}\nAuthor:       SimpliWeb\nAuthor URI:   https://simpliweb.com.au\nLicense:      GPL v2 or later\nLicense URI:  https://www.gnu.org/licenses/gpl-2.0.html\nText Domain:  ${4:simpliweb}\nDomain Path:  /languages\n*/\n\ndefine('${5:SIMPLI_PLUGIN}_VERSION', '${3:1.0.0}');\ndefine('${5:SIMPLI_PLUGIN}_PATH', plugin_dir_path(__FILE__));\ndefine('${5:SIMPLI_PLUGIN}_URL', plugin_dir_url(__FILE__));\n\n$0"
+		},
+		{
+			"file": "php.json",
+			"name": "WordPress Singleton Class",
+			"prefix": "wpclass",
+			"description": "WordPress plugin class with singleton pattern",
+			"scope": "",
+			"body": "<?php\nif ( ! class_exists( '${1:ClassName}' ) ) :\n\nclass ${1:ClassName} {\n\n\tprivate static \\$instance = null;\n\n\tpublic static function get_instance() {\n\t\tif ( null === self::\\$instance ) {\n\t\t\tself::\\$instance = new self();\n\t\t}\n\t\treturn self::\\$instance;\n\t}\n\n\tprivate function __construct() {\n\t\t$0\n\t}\n}\n\n${1:ClassName}::get_instance();\n\nendif;"
+		},
+		{
+			"file": "php.json",
+			"name": "Abort if accessed directly",
+			"prefix": "abspath",
+			"description": "Security check — prevents direct file access",
+			"scope": "",
+			"body": "if ( ! defined( 'ABSPATH' ) ) exit;"
+		},
+		{
+			"file": "php.json",
+			"name": "Plugin constants",
+			"prefix": "pluginconst",
+			"description": "Standard WordPress plugin constants block",
+			"scope": "",
+			"body": "define( '${1:MYPLUGIN}_VERSION',   '${2:1.0.0}' );\ndefine( '${1:MYPLUGIN}_DIR',       plugin_dir_path( __FILE__ ) );\ndefine( '${1:MYPLUGIN}_URL',       plugin_dir_url( __FILE__ ) );\ndefine( '${1:MYPLUGIN}_BASENAME',  plugin_basename( __FILE__ ) );"
+		}
+	]
+}

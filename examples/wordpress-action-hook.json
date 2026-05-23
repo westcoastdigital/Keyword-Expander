@@ -1,0 +1,15 @@
+{
+	"keywordExpander": true,
+	"version": 1,
+	"exported": "2026-05-23T23:15:49.063Z",
+	"snippets": [
+		{
+			"file": "php.json",
+			"name": "WordPress Action Hook",
+			"prefix": "hook",
+			"body": "if(!function_exists(${1:callback_function})) {\n\n    add_action( '${2:hook_name}', '${1:callback_function}' );\n    function ${1:callback_function}() {\n\t    $0\n    }\n\n}",
+			"description": "Add a hook function",
+			"scope": ""
+		}
+	]
+}

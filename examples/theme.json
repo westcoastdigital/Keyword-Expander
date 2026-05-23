@@ -1,0 +1,31 @@
+{
+	"keywordExpander": true,
+	"version": 1,
+	"exported": "2025-05-24T00:00:00.000Z",
+	"snippets": [
+		{
+			"file": "php.json",
+			"name": "Theme setup function",
+			"prefix": "themesetup",
+			"description": "after_setup_theme callback with common theme support declarations",
+			"scope": "",
+			"body": "add_action( 'after_setup_theme', '${1:prefix}_setup' );\n\nfunction ${1:prefix}_setup() {\n    load_theme_textdomain( '${2:text-domain}', get_template_directory() . '/languages' );\n    add_theme_support( 'title-tag' );\n    add_theme_support( 'post-thumbnails' );\n    add_theme_support( 'html5', [ 'search-form', 'comment-form', 'gallery', 'caption' ] );\n    add_theme_support( 'customize-selective-refresh-widgets' );\n    register_nav_menus( [\n        'primary' => __( 'Primary Menu', '${2:text-domain}' ),\n        'footer'  => __( 'Footer Menu',  '${2:text-domain}' ),\n    ] );\n}"
+		},
+		{
+			"file": "php.json",
+			"name": "Register widget area / sidebar",
+			"prefix": "regsidebar",
+			"description": "register_sidebar with standard WordPress widget area markup",
+			"scope": "",
+			"body": "add_action( 'widgets_init', '${1:prefix}_widgets_init' );\n\nfunction ${1:prefix}_widgets_init() {\n    register_sidebar( [\n        'name'          => __( '${2:Primary Sidebar}', '${3:text-domain}' ),\n        'id'            => '${4:primary-sidebar}',\n        'before_widget' => '<section id=\"%1\\$s\" class=\"widget %2\\$s\">',\n        'after_widget'  => '</section>',\n        'before_title'  => '<h2 class=\"widget-title\">',\n        'after_title'   => '</h2>',\n    ] );\n}"
+		},
+		{
+			"file": "php.json",
+			"name": "Custom WP_Query loop",
+			"prefix": "wploopquery",
+			"description": "WP_Query with meta_query, loop, and wp_reset_postdata",
+			"scope": "",
+			"body": "\\$args = [\n    'post_type'      => '${1:post}',\n    'posts_per_page' => ${2:10},\n    'meta_query'     => [\n        [\n            'key'     => '${3:meta_key}',\n            'value'   => '${4:meta_value}',\n            'compare' => '=',\n        ],\n    ],\n];\n\n\\$query = new WP_Query( \\$args );\n\nif ( \\$query->have_posts() ) :\n    while ( \\$query->have_posts() ) : \\$query->the_post();\n        $0\n    endwhile;\n    wp_reset_postdata();\nelse :\n    echo '<p>' . esc_html__( 'No results found.', '${5:text-domain}' ) . '</p>';\nendif;"
+		}
+	]
+}
