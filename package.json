@@ -3,7 +3,7 @@
   "displayName": "Keyword Expander",
   "description": "Create and manage keyword shortcuts that expand into full code snippets, with a visual editor.",
   "version": "1.0.0",
-  "publisher": "Simpliweb",
+  "publisher": "simpliweb",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -35,7 +35,7 @@
         {
           "command": "keywordExpander.openEditor",
           "group": "2_configure@1",
-          "when": "extension == westcoastdigital.keyword-expander"
+          "when": "extension == simpliweb.keyword-expander"
         }
       ]
     }

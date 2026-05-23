@@ -9,17 +9,17 @@ A VS Code extension with a visual editor for creating and managing keyword short
 ### Option A — Drop in extensions folder (no build needed)
 
 ```bash
-git clone https://github.com/westcoastdigital/keyword-expander.git ~/.vscode/extensions/keyword-expander
+git clone https://github.com/simpliweb/keyword-expander.git ~/.vscode/extensions/simpliweb.keyword-expander
 ```
 
 Then restart VS Code (or run *Developer: Reload Window*).
 
-On Windows, clone into `%USERPROFILE%\.vscode\extensions\keyword-expander` instead.
+On Windows, clone into `%USERPROFILE%\.vscode\extensions\simpliweb.keyword-expander` instead.
 
 ### Option B — Build a `.vsix`
 
 ```bash
-git clone https://github.com/westcoastdigital/keyword-expander.git
+git clone https://github.com/simpliweb/keyword-expander.git
 cd keyword-expander
 npm install
 npx vsce package
@@ -29,7 +29,7 @@ code --install-extension keyword-expander-1.0.0.vsix
 ### Updating
 
 ```bash
-cd ~/.vscode/extensions/keyword-expander
+cd ~/.vscode/extensions/simpliweb.keyword-expander
 git pull
 ```
 
@@ -203,7 +203,7 @@ Language: PHP
 Body:
 /**
  * Theme Name: ${1:SimpliWeb Theme}
- * Theme URI: https://github.com/westcoastdigital
+ * Theme URI: https://github.com/simpliweb
  * Description:  ${2:Describe your theme here}
  * Version: ${3:1.0.0}
  * Author: SimpliWeb
@@ -229,7 +229,7 @@ Body:
 <?php
 /*
 Plugin Name:  ${1:SimpliWeb Plugin}
-Plugin URI:   https://gist.github.com/westcoastdigital
+Plugin URI:   https://gist.github.com/simpliweb
 Description:  ${2:Describe what the plugin does here}
 Version:      ${3:1.0.0}
 Author:       SimpliWeb
