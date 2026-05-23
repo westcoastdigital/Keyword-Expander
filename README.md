@@ -135,7 +135,7 @@ Body:
  * Theme URI: https://github.com/westcoastdigital
  * Description:  ${2:Describe your theme here}
  * Version: ${3:1.0.0}
- * Author: SimplIWeb
+ * Author: SimpliWeb
  * Author URI: https://simpliweb.com.au
  * Text Domain: ${4:simpliweb}
  * Domain Path: /assets/lang
