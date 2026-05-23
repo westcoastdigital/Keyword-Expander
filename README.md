@@ -123,6 +123,31 @@ The body follows VS Code's standard [snippet format](https://code.visualstudio.c
 
 ## Examples
 
+### PHP theme header
+
+```
+Name:     WordPress Theme Header
+Prefix:   theme
+Language: PHP
+Body:
+/**
+ * Theme Name: ${1:SimpliWeb Theme}
+ * Theme URI: https://github.com/westcoastdigital
+ * Description:  ${2:Describe your theme here}
+ * Version: ${3:1.0.0}
+ * Author: SimplIWeb
+ * Author URI: https://simpliweb.com.au
+ * Text Domain: ${4:simpliweb}
+ * Domain Path: /assets/lang
+ * Tested up to: 6.4
+ * Requires at least: 6.2
+ * Requires PHP: 7.4
+ * License: GNU General Public License v2.0 or later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
+ */
+$0
+```
+
 ### PHP plugin header
 
 ```
@@ -132,17 +157,22 @@ Language: PHP
 Body:
 <?php
 /*
-Plugin Name:  ${1:My Plugin}
+Plugin Name:  ${1:SimpliWeb Plugin}
 Plugin URI:   https://gist.github.com/westcoastdigital
 Description:  ${2:Describe what the plugin does here}
 Version:      ${3:1.0.0}
-Author:       Jon Mather
-Author URI:   https://jonmather.au
+Author:       SimpliWeb
+Author URI:   https://simpliweb.com.au
 License:      GPL v2 or later
 License URI:  https://www.gnu.org/licenses/gpl-2.0.html
-Text Domain:  ${4:my-plugin}
+Text Domain:  ${4:simpliweb}
 Domain Path:  /languages
 */
+
+define('${5:SIMPLI_PLUGIN}_VERSION', '${3:1.0.0}');
+define('${5:SIMPLI_PLUGIN}_PATH', plugin_dir_path(__FILE__));
+define('${5:SIMPLI_PLUGIN}_URL', plugin_dir_url(__FILE__));
+
 $0
 ```
 
