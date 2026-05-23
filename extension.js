@@ -165,6 +165,48 @@ let _panel = null;
 
 function activate(context) {
 
+    // ── Completion provider ────────────────────────────────────────────────
+    // Registered for both 'file' (saved) and 'untitled' (unsaved) schemes so
+    // snippets appear in IntelliSense regardless of whether the file is saved.
+    // VS Code's native snippet loader skips untitled files; this fills the gap.
+    context.subscriptions.push(
+        vscode.languages.registerCompletionItemProvider(
+            [{ scheme: 'file' }, { scheme: 'untitled' }],
+            {
+                provideCompletionItems(document) {
+                    const all = loadAllSnippets();
+                    const items = [];
+
+                    for (const s of all) {
+                        // Language filter
+                        const langInfo = FILE_TO_LANG[s.file];
+                        if (langInfo && langInfo.id && langInfo.id !== 'global') {
+                            if (langInfo.id !== document.languageId) continue;
+                        }
+                        if (s.scope && s.file.endsWith('.code-snippets')) {
+                            if (!s.scope.split(/,\s*/).includes(document.languageId)) continue;
+                        }
+
+                        // One completion item per prefix (prefix may be comma-separated)
+                        const prefixes = s.prefix.split(/,\s*/).map(p => p.trim()).filter(Boolean);
+                        for (const prefix of prefixes) {
+                            const item = new vscode.CompletionItem(prefix, vscode.CompletionItemKind.Snippet);
+                            item.insertText    = new vscode.SnippetString(s.body);
+                            item.detail        = s.name;
+                            item.documentation = new vscode.MarkdownString(
+                                '```\n' + s.body.substring(0, 300) +
+                                (s.body.length > 300 ? '\n…' : '') + '\n```'
+                            );
+                            item.sortText = '!!' + prefix;
+                            items.push(item);
+                        }
+                    }
+                    return items;
+                }
+            }
+        )
+    );
+
     // Expand command — optional alternative to IntelliSense Tab expansion.
     // Reads from the actual VS Code snippet files. Can be bound to Tab; see README.
     context.subscriptions.push(
@@ -816,11 +858,11 @@ function renderList() {
     html += '<div class="list-section">' + esc(label) + '</div>';
     grp.forEach(function(s) {
       var active = s.id === state.selectedId ? ' active' : '';
-      html += '<div class="snippet-item' + active + '" onclick="selectSnippet(' + JSON.stringify(s.id) + ')">' +
+      html += '<div class="snippet-item' + active + '" data-id="' + esc(s.id) + '">' +
         '<span class="kw-badge" title="' + esc(s.prefix) + '">' + esc(s.prefix) + '</span>' +
         '<span class="item-name">' + esc(s.name) + '</span>' +
         '<div class="item-actions">' +
-        '<button class="icon-btn" title="Delete" onclick="event.stopPropagation();deleteSnippet(' + JSON.stringify(s.id) + ')">&#128465;</button>' +
+        '<button class="icon-btn del-btn" title="Delete" data-id="' + esc(s.id) + '">&#128465;</button>' +
         '</div>' +
         '</div>';
     });
@@ -828,6 +870,18 @@ function renderList() {
 
   list.innerHTML = html;
 }
+
+/* ── List click delegation (avoids inline-onclick quote-escaping bugs) ──── */
+document.getElementById('snippetList').addEventListener('click', function(e) {
+  var delBtn = e.target.closest('.del-btn');
+  if (delBtn) {
+    e.stopPropagation();
+    deleteSnippet(delBtn.dataset.id);
+    return;
+  }
+  var item = e.target.closest('.snippet-item');
+  if (item && item.dataset.id) selectSnippet(item.dataset.id);
+});
 
 /* ── Select snippet ──────────────────────────────────────────────────── */
 function selectSnippet(id) {
