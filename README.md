@@ -214,10 +214,13 @@ Name:     WordPress Action Hook
 Prefix:   wphook
 Language: PHP
 Body:
-add_action( '${1:hook_name}', '${2:callback_function}' );
+if(!function_exists(${1:callback_function})) {
 
-function ${2:callback_function}() {
-	$0
+    add_action( '${2:hook_name}', '${1:callback_function}' );
+    function ${1:callback_function}() {
+	    $0
+    }
+
 }
 ```
 
