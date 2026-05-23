@@ -1,0 +1,49 @@
+{
+  "name": "keyword-expander",
+  "displayName": "Keyword Expander",
+  "description": "Create and manage keyword shortcuts that expand into full code snippets, with a visual editor.",
+  "version": "1.0.0",
+  "publisher": "Simpliweb",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": ["Snippets", "Other"],
+  "keywords": ["snippet", "shortcut", "keyword", "expand", "template"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "keywordExpander.openEditor",
+        "title": "Keyword Expander: Open Snippet Editor",
+        "icon": "$(symbol-keyword)"
+      },
+      {
+        "command": "keywordExpander.expand",
+        "title": "Keyword Expander: Expand Keyword at Cursor"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "keywordExpander.openEditor",
+          "group": "navigation",
+          "when": "true"
+        }
+      ],
+      "extension/context": [
+        {
+          "command": "keywordExpander.openEditor",
+          "group": "2_configure@1",
+          "when": "extension == westcoastdigital.keyword-expander"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^2.22.0"
+  }
+}
