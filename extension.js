@@ -101,6 +101,41 @@ function writeSnippetFile(filePath, data) {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+// Tags sidecar  (keyword-expander-tags.json alongside snippet files)
+// Keys are "file::snippetName", values are string[].
+// Native snippet files are never modified — full VS Code compatibility kept.
+// ───────────────────────────────────────────────────────────────────────────
+
+function getTagsFilePath() {
+    return path.join(getSnippetsDir(), 'keyword-expander-tags.json');
+}
+
+function readTags() {
+    try {
+        const filePath = getTagsFilePath();
+        if (!fs.existsSync(filePath)) return {};
+        return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    } catch (_) { return {}; }
+}
+
+function writeTags(tags) {
+    const filePath = getTagsFilePath();
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    // Drop empty-array entries to keep the file tidy
+    const cleaned = {};
+    for (const [k, v] of Object.entries(tags)) {
+        if (Array.isArray(v) && v.length > 0) cleaned[k] = v;
+    }
+    fs.writeFileSync(filePath, JSON.stringify(cleaned, null, '\t'), 'utf8');
+}
+
+function parseTags(raw) {
+    if (!raw) return [];
+    return raw.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // Load all snippets from the user snippets directory → flat array
 // ───────────────────────────────────────────────────────────────────────────
 
@@ -113,9 +148,12 @@ function loadAllSnippets() {
     let files;
     try {
         files = fs.readdirSync(dir).filter(f =>
-            f.endsWith('.json') || f.endsWith('.code-snippets')
+            (f.endsWith('.json') || f.endsWith('.code-snippets')) &&
+            f !== 'keyword-expander-tags.json'   // skip our own sidecar
         );
     } catch (_) { return list; }
+
+    const tags = readTags();
 
     for (const file of files) {
         const data = readSnippetFile(path.join(dir, file));
@@ -132,9 +170,10 @@ function loadAllSnippets() {
             const prefix    = Array.isArray(rawPrefix) ? rawPrefix.join(', ') : String(rawPrefix);
             const rawBody   = s.body   || '';
             const body      = Array.isArray(rawBody)   ? rawBody.join('\n')   : String(rawBody);
+            const id        = file + '::' + name;
 
             list.push({
-                id:          file + '::' + name,
+                id,
                 file,
                 langLabel:   lang.label,
                 name,
@@ -142,6 +181,7 @@ function loadAllSnippets() {
                 body,
                 description: s.description || '',
                 scope:       s.scope       || '',
+                tags:        tags[id]      || [],
             });
         }
     }
@@ -291,11 +331,47 @@ function activate(context) {
             }
 
             const qp = vscode.window.createQuickPick();
-            qp.items           = items;
+            qp.items              = items;
             qp.matchOnDescription = true;
             qp.matchOnDetail      = true;
-            qp.placeholder     = 'Type a keyword or snippet name…';
-            qp.title           = 'Keyword Expander — Browse & Insert';
+            qp.placeholder        = 'Type a keyword, snippet name, or tag:woo…';
+            qp.title              = 'Keyword Expander — Browse & Insert';
+
+            // Tag filter: when the user types "tag:xxx" we re-build items
+            // filtered to snippets whose tags contain the substring.
+            qp.onDidChangeValue(value => {
+                const tagMatch = value.match(/(?:^|\s)tag:(\S*)/i);
+                if (!tagMatch) {
+                    qp.items = items;   // back to full list
+                    return;
+                }
+                const needle = tagMatch[1].toLowerCase();
+                const filtered = all.filter(s =>
+                    s.tags && s.tags.some(t => t.includes(needle))
+                );
+                // Re-group filtered results
+                const fg = {}, fo = [];
+                for (const s of filtered) {
+                    if (!fg[s.langLabel]) { fg[s.langLabel] = []; fo.push(s.langLabel); }
+                    fg[s.langLabel].push(s);
+                }
+                const tagItems = [];
+                for (const lang of fo) {
+                    tagItems.push({ label: lang, kind: vscode.QuickPickItemKind.Separator });
+                    for (const s of fg[lang]) {
+                        const tagStr = s.tags.length ? ' [' + s.tags.join(', ') + ']' : '';
+                        tagItems.push({
+                            label:       s.prefix,
+                            description: s.name + tagStr,
+                            detail:      s.description || undefined,
+                            snippet:     s,
+                        });
+                    }
+                }
+                qp.items = tagItems.length
+                    ? tagItems
+                    : [{ label: 'No snippets match tag "' + needle + '"', kind: vscode.QuickPickItemKind.Separator }];
+            });
 
             qp.onDidAccept(async () => {
                 const picked = qp.selectedItems[0];
@@ -369,7 +445,7 @@ function openEditor() {
                 break;
 
             case 'save': {
-                const { originalFile, originalName, file, name, prefix, body, description, scope } = msg;
+                const { originalFile, originalName, file, name, prefix, body, description, scope, tags } = msg;
 
                 // Delete original entry if file or name changed
                 if (originalFile && (originalFile !== file || originalName !== name)) {
@@ -389,6 +465,16 @@ function openEditor() {
                 target[name] = entry;
                 writeSnippetFile(path.join(dir, file), target);
 
+                // Persist tags in sidecar (rename-aware)
+                const allTags = readTags();
+                const oldKey  = originalFile ? originalFile + '::' + originalName : null;
+                const newKey  = file + '::' + name;
+                if (oldKey && oldKey !== newKey) delete allTags[oldKey];
+                const tagArr = parseTags(tags);
+                if (tagArr.length) allTags[newKey] = tagArr;
+                else delete allTags[newKey];
+                writeTags(allTags);
+
                 vscode.window.showInformationMessage('Keyword Expander: "' + name + '" saved.');
                 push();
                 break;
@@ -401,6 +487,10 @@ function openEditor() {
                     delete data[name];
                     writeSnippetFile(path.join(dir, file), data);
                 }
+                // Remove tags entry from sidecar
+                const allTags = readTags();
+                const key = file + '::' + name;
+                if (allTags[key]) { delete allTags[key]; writeTags(allTags); }
                 push();
                 break;
             }
@@ -453,6 +543,7 @@ function openEditor() {
                         body:        s.body,
                         description: s.description,
                         scope:       s.scope,
+                        tags:        s.tags && s.tags.length ? s.tags : undefined,
                     })),
                 };
                 fs.writeFileSync(saveUri.fsPath, JSON.stringify(exportData, null, '\t'), 'utf8');
@@ -493,6 +584,7 @@ function openEditor() {
                 }
 
                 let count = 0;
+                const importedTags = readTags();
                 for (const s of importData.snippets) {
                     if (!s.file || !s.name || !s.prefix || !s.body) continue;
                     const filePath = path.join(dir, s.file);
@@ -505,8 +597,13 @@ function openEditor() {
                     if (s.scope && s.file.endsWith('.code-snippets')) entry.scope = s.scope;
                     target[s.name] = entry;
                     writeSnippetFile(filePath, target);
+                    // Restore tags if present
+                    if (Array.isArray(s.tags) && s.tags.length) {
+                        importedTags[s.file + '::' + s.name] = s.tags;
+                    }
                     count++;
                 }
+                writeTags(importedTags);
 
                 vscode.window.showInformationMessage(
                     'Keyword Expander: Imported ' + count + ' snippet(s).'
@@ -824,6 +921,24 @@ textarea{
 /* ── Custom filename row ──────────────────────────────────────── */
 .custom-file-row{display:none;}
 .custom-file-row.visible{display:flex;}
+
+/* ── Tag pills (sidebar list) ─────────────────────────────────── */
+.item-tags{
+  display:flex;flex-wrap:nowrap;gap:3px;
+  flex-shrink:0;overflow:hidden;
+}
+.tag-pill{
+  font-size:9px;line-height:1;
+  background:var(--vscode-badge-background);
+  color:var(--vscode-badge-foreground);
+  opacity:0.7;
+  padding:2px 5px;border-radius:8px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:55px;
+}
+.snippet-item.active .tag-pill,.snippet-item:hover .tag-pill{opacity:1;}
+
+/* ── Tags input (form) ────────────────────────────────────────── */
+.tags-hint{font-size:10px;opacity:0.45;margin-top:2px;}
 </style>
 </head>
 <body>
@@ -845,7 +960,7 @@ textarea{
   <!-- Sidebar -->
   <div class="sidebar">
     <div class="sidebar-toolbar">
-      <input type="text" id="search" placeholder="Search snippets&#x2026;" oninput="renderList()" autocomplete="off">
+      <input type="text" id="search" placeholder="Search&#x2026; or tag:woo" oninput="renderList()" autocomplete="off">
       <select id="langFilter" onchange="renderList()">
         <option value="">All Languages</option>
       </select>
@@ -895,6 +1010,12 @@ textarea{
         <div class="form-group">
           <label for="descInput">Description <span class="label-hint">(optional)</span></label>
           <input type="text" id="descInput" placeholder="Short description shown in IntelliSense" autocomplete="off">
+        </div>
+
+        <div class="form-group full">
+          <label for="tagsInput">Tags <span class="label-hint">(optional — comma-separated)</span></label>
+          <input type="text" id="tagsInput" placeholder="e.g. woocommerce, php, checkout" autocomplete="off" spellcheck="false">
+          <span class="tags-hint">Search by tag in the sidebar with <code style="font-family:var(--vscode-editor-font-family,monospace);background:var(--vscode-textBlockQuote-background,rgba(128,128,128,.2));padding:0 4px;border-radius:2px;font-size:10px">tag:woo</code></span>
         </div>
 
         <div class="form-group full scope-row hidden" id="scopeRow">
@@ -1016,22 +1137,37 @@ function buildFileSelect() {
 
 /* ── Render sidebar list ─────────────────────────────────────────────── */
 function renderList() {
-  var search    = document.getElementById('search').value.toLowerCase();
+  var raw        = document.getElementById('search').value;
   var langFilter = document.getElementById('langFilter').value;
-  var list      = document.getElementById('snippetList');
+  var list       = document.getElementById('snippetList');
+
+  // Extract tag: filter — anything after "tag:" up to the next space
+  var tagNeedle  = null;
+  var textSearch = raw.replace(/(?:^|\s)tag:(\S*)/gi, function(_, t) {
+    tagNeedle = t.toLowerCase();
+    return '';
+  }).trim().toLowerCase();
 
   var filtered = state.snippets.filter(function(s) {
     if (langFilter && s.langLabel !== langFilter) return false;
-    if (search) {
-      return s.prefix.toLowerCase().indexOf(search) !== -1 ||
-             s.name.toLowerCase().indexOf(search)   !== -1 ||
-             s.body.toLowerCase().indexOf(search)   !== -1;
+    if (tagNeedle !== null) {
+      var tags = s.tags || [];
+      var hit  = tagNeedle === '' || tags.some(function(t) { return t.indexOf(tagNeedle) !== -1; });
+      if (!hit) return false;
+    }
+    if (textSearch) {
+      return s.prefix.toLowerCase().indexOf(textSearch) !== -1 ||
+             s.name.toLowerCase().indexOf(textSearch)   !== -1 ||
+             s.body.toLowerCase().indexOf(textSearch)   !== -1;
     }
     return true;
   });
 
   if (filtered.length === 0) {
-    list.innerHTML = '<div class="empty-list">No snippets found.<br>Click "+ Add New Snippet" to create one.</div>';
+    var emptyMsg = tagNeedle !== null && tagNeedle !== ''
+      ? 'No snippets tagged &ldquo;' + esc(tagNeedle) + '&rdquo;.'
+      : 'No snippets found.<br>Click &ldquo;+ Add New Snippet&rdquo; to create one.';
+    list.innerHTML = '<div class="empty-list">' + emptyMsg + '</div>';
     return;
   }
 
@@ -1051,10 +1187,19 @@ function renderList() {
     var label = langEntry ? langEntry.label : file.replace(/\.(json|code-snippets)$/, '');
     html += '<div class="list-section">' + esc(label) + '</div>';
     grp.forEach(function(s) {
-      var active = s.id === state.selectedId ? ' active' : '';
+      var active   = s.id === state.selectedId ? ' active' : '';
+      var tagPills = '';
+      if (s.tags && s.tags.length) {
+        // Show up to 3 pills; overflow is hidden by CSS
+        var show = s.tags.slice(0, 3);
+        tagPills = '<div class="item-tags">' +
+          show.map(function(t) { return '<span class="tag-pill" title="' + esc(t) + '">' + esc(t) + '</span>'; }).join('') +
+          '</div>';
+      }
       html += '<div class="snippet-item' + active + '" data-id="' + esc(s.id) + '">' +
         '<span class="kw-badge" title="' + esc(s.prefix) + '">' + esc(s.prefix) + '</span>' +
         '<span class="item-name">' + esc(s.name) + '</span>' +
+        tagPills +
         '<div class="item-actions">' +
         '<button class="icon-btn exp-btn" title="Export snippet" data-id="' + esc(s.id) + '">&#8659;</button>' +
         '<button class="icon-btn del-btn" title="Delete" data-id="' + esc(s.id) + '">&#128465;</button>' +
@@ -1097,6 +1242,7 @@ function selectSnippet(id) {
   document.getElementById('nameInput').value   = s.name;
   document.getElementById('prefixInput').value = s.prefix;
   document.getElementById('descInput').value   = s.description;
+  document.getElementById('tagsInput').value   = (s.tags || []).join(', ');
   document.getElementById('bodyInput').value   = s.body;
   document.getElementById('scopeInput').value  = s.scope;
 
@@ -1127,6 +1273,7 @@ function newSnippet() {
   document.getElementById('nameInput').value   = '';
   document.getElementById('prefixInput').value = '';
   document.getElementById('descInput').value   = '';
+  document.getElementById('tagsInput').value   = '';
   document.getElementById('bodyInput').value   = '';
   document.getElementById('scopeInput').value  = '';
 
@@ -1155,6 +1302,7 @@ function saveSnippet() {
   var name   = document.getElementById('nameInput').value.trim();
   var prefix = document.getElementById('prefixInput').value.trim();
   var desc   = document.getElementById('descInput').value.trim();
+  var tags   = document.getElementById('tagsInput').value.trim();
   var body   = document.getElementById('bodyInput').value;
   var scope  = document.getElementById('scopeInput').value.trim();
   var file   = document.getElementById('fileSelect').value;
@@ -1172,6 +1320,7 @@ function saveSnippet() {
     name,
     prefix,
     description:  desc,
+    tags,
     body,
     scope,
   });

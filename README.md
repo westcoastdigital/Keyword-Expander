@@ -77,6 +77,8 @@ There are four ways to open the snippet editor — no Command Palette required:
 
 Press `Ctrl+Alt+K` (`Cmd+Alt+K` on Mac) to open a searchable Quick Pick of every snippet you have. Snippets are grouped by language and searchable by keyword, name, or description. Select one and it inserts directly at the cursor.
 
+To filter by tag, type `tag:` followed by part of the tag name — e.g. `tag:woo` shows only WooCommerce-tagged snippets. You can combine a tag filter with a normal search term: `tag:woo checkout` narrows to WooCommerce snippets whose keyword or name also matches "checkout".
+
 This is the fastest way to reference and use a snippet without remembering the exact keyword — especially useful when you have a large library.
 
 You can also reach it from:
@@ -102,12 +104,51 @@ To change the keybinding, open *File → Preferences → Keyboard Shortcuts* and
 | **Language / File** | Where to save it — `PHP`, `JavaScript`, `Global`, etc. |
 | **Prefix / Keyword** | What you type to trigger the expansion (e.g. `plugin`) |
 | **Description** | Optional detail line shown in the IntelliSense dropdown |
+| **Tags** | Optional comma-separated labels for grouping and filtering (e.g. `woocommerce, php, checkout`) — not written to the snippet file, stored separately |
 | **Scope** | Global snippets only — comma-separated language IDs to restrict to (blank = all languages) |
 | **Body** | The content to expand into — supports full VS Code snippet syntax |
 
 3. Click **Save Snippet** (or `Ctrl+S`)
 
 The snippet is written immediately to your VS Code snippets directory and available in IntelliSense with no restart.
+
+---
+
+## Searching & filtering
+
+The sidebar search box and the Browse & Insert Quick Pick both support the same filter syntax.
+
+### Text search
+
+Typing plain text matches against the snippet's keyword (prefix), name, and body. Results update as you type.
+
+### Language filter
+
+Use the **All Languages** dropdown beneath the search box to restrict the list to snippets from a specific language file.
+
+### Tag filter
+
+Type `tag:` followed by part of a tag name to show only snippets that carry a matching tag:
+
+| You type | Shows |
+|---|---|
+| `tag:woo` | Any snippet tagged with something containing "woo" (e.g. `woocommerce`, `woo-blocks`) |
+| `tag:woocommerce` | Snippets tagged exactly `woocommerce` (or any tag containing that string) |
+| `tag:` | All snippets that have at least one tag |
+
+Tag matching is case-insensitive and substring-based — `tag:woo` matches `woocommerce`, `woo-blocks`, `woo`, etc.
+
+### Combining filters
+
+You can mix a tag filter with a text search in the same box. The tag filter is extracted first, then the remaining text is matched normally:
+
+```
+tag:woo checkout
+```
+
+This shows snippets tagged with something containing "woo" whose keyword, name, or body also contains "checkout".
+
+The language dropdown applies on top of both — so you can filter to PHP WooCommerce checkout snippets by selecting PHP in the dropdown, then typing `tag:woo checkout` in the search box.
 
 ---
 
@@ -178,11 +219,14 @@ The export is plain JSON and easy to read or edit by hand:
             "prefix": "plugin",
             "body": "<?php\n/*\nPlugin Name: ${1:My Plugin}\n...\n*/\n$0",
             "description": "Standard WP plugin file header",
-            "scope": ""
+            "scope": "",
+            "tags": ["wordpress", "plugin", "scaffolding"]
         }
     ]
 }
 ```
+
+The `tags` field is omitted for snippets that have no tags. Tags are restored automatically on import.
 
 ### Example files
 
@@ -928,6 +972,8 @@ Snippets are saved to your VS Code user snippets folder:
 | Linux | `~/.config/Code/User/snippets/` |
 
 Language-specific snippets are stored in files like `php.json` and `javascript.json`. Global snippets go in `global.code-snippets` and optionally use the **Scope** field to restrict which languages they appear in.
+
+Tags are stored separately in `keyword-expander-tags.json` in the same folder — a plain JSON file keyed by snippet identifier. This keeps the native snippet files 100% standard and compatible with VS Code's built-in snippet engine, IntelliSense, and any other tooling that reads those files. The tags file is included in VS Code Settings Sync alongside your other snippet files.
 
 Click **Open Snippets Folder** in the editor footer to open the directory directly.
 
