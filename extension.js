@@ -257,6 +257,66 @@ function activate(context) {
         vscode.commands.registerCommand('keywordExpander.openEditor', () => openEditor())
     );
 
+    // ── Browse & Insert quick pick ───────────────────────────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand('keywordExpander.browse', async () => {
+            const all = loadAllSnippets();
+
+            if (!all.length) {
+                vscode.window.showInformationMessage(
+                    'Keyword Expander: No snippets found. Open the editor to create some.'
+                );
+                return;
+            }
+
+            // Group by language for section separators
+            const groups  = {};
+            const order   = [];
+            for (const s of all) {
+                if (!groups[s.langLabel]) { groups[s.langLabel] = []; order.push(s.langLabel); }
+                groups[s.langLabel].push(s);
+            }
+
+            const items = [];
+            for (const lang of order) {
+                items.push({ label: lang, kind: vscode.QuickPickItemKind.Separator });
+                for (const s of groups[lang]) {
+                    items.push({
+                        label:       s.prefix,
+                        description: s.name,
+                        detail:      s.description || undefined,
+                        snippet:     s,
+                    });
+                }
+            }
+
+            const qp = vscode.window.createQuickPick();
+            qp.items           = items;
+            qp.matchOnDescription = true;
+            qp.matchOnDetail      = true;
+            qp.placeholder     = 'Type a keyword or snippet name…';
+            qp.title           = 'Keyword Expander — Browse & Insert';
+
+            qp.onDidAccept(async () => {
+                const picked = qp.selectedItems[0];
+                qp.hide();
+                if (!picked || !picked.snippet) return;
+
+                const editor = vscode.window.activeTextEditor;
+                if (editor) {
+                    await editor.insertSnippet(new vscode.SnippetString(picked.snippet.body));
+                } else {
+                    // No active editor — open a new untitled file and insert
+                    const doc = await vscode.workspace.openTextDocument({ content: '' });
+                    const ed  = await vscode.window.showTextDocument(doc);
+                    await ed.insertSnippet(new vscode.SnippetString(picked.snippet.body));
+                }
+            });
+
+            qp.show();
+        })
+    );
+
     // ── Status bar item ──────────────────────────────────────────────────
     // Always-visible one-click access in the bottom bar.
     const statusBar = vscode.window.createStatusBarItem(

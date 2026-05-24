@@ -19,12 +19,22 @@
         "icon": "$(symbol-keyword)"
       },
       {
+        "command": "keywordExpander.browse",
+        "title": "Keyword Expander: Browse & Insert Snippet",
+        "icon": "$(search)"
+      },
+      {
         "command": "keywordExpander.expand",
         "title": "Keyword Expander: Expand Keyword at Cursor"
       }
     ],
     "menus": {
       "editor/title": [
+        {
+          "command": "keywordExpander.browse",
+          "group": "navigation",
+          "when": "true"
+        },
         {
           "command": "keywordExpander.openEditor",
           "group": "navigation",
@@ -43,6 +53,14 @@
   "scripts": {
     "package": "vsce package"
   },
+  "keybindings": [
+    {
+      "command": "keywordExpander.browse",
+      "key": "ctrl+shift+k",
+      "mac": "cmd+shift+k",
+      "when": "editorTextFocus"
+    }
+  ],
   "devDependencies": {
     "@vscode/vsce": "^2.22.0"
   }

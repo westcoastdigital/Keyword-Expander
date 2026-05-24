@@ -6,7 +6,9 @@ A VS Code extension with a visual editor for creating and managing keyword short
 
 ## Installation
 
-### Option A — Drop in extensions folder (no build needed)
+**Option A** (clone into extensions) supports `git pull` updates and is recommended if you're developing or tweaking the extension. **Option B** (build a vsix) is better for distributing to others or installing on machines without Git. Don't use both at the same time — VS Code will see duplicate extensions.
+
+### Option A — Clone into extensions folder (recommended for easy updates)
 
 ```bash
 git clone https://github.com/westcoastdigital/keyword-expander.git ~/.vscode/extensions/simpliweb.keyword-expander
@@ -14,9 +16,13 @@ git clone https://github.com/westcoastdigital/keyword-expander.git ~/.vscode/ext
 
 Then restart VS Code (or run *Developer: Reload Window*).
 
-On Windows, clone into `%USERPROFILE%\.vscode\extensions\simpliweb.keyword-expander` instead.
+On Windows:
 
-### Option B — Build a `.vsix`
+```bash
+git clone https://github.com/westcoastdigital/keyword-expander.git %USERPROFILE%\.vscode\extensions\simpliweb.keyword-expander
+```
+
+### Option B — Build a `.vsix` (for distributing to others)
 
 ```bash
 git clone https://github.com/westcoastdigital/keyword-expander.git
@@ -26,14 +32,29 @@ npx vsce package
 code --install-extension keyword-expander-1.0.0.vsix
 ```
 
+> **Note:** The vsix install extracts files into the extensions folder — it is not a git repository. Running `git pull` inside `simpliweb.keyword-expander-1.0.0` will fail. To update a vsix install, rebuild and reinstall the vsix (see below).
+
 ### Updating
+
+**Option A** — Pull the latest changes and reload:
 
 ```bash
 cd ~/.vscode/extensions/simpliweb.keyword-expander
 git pull
 ```
 
-Reload VS Code after pulling.
+Then run *Developer: Reload Window* in VS Code.
+
+**Option B** — Rebuild and reinstall the vsix:
+
+```bash
+cd keyword-expander
+git pull
+npx vsce package
+code --install-extension keyword-expander-1.0.0.vsix
+```
+
+VS Code will replace the existing install automatically.
 
 ---
 
@@ -47,6 +68,24 @@ There are four ways to open the snippet editor — no Command Palette required:
 | **Editor title bar** | Click the **⌨** icon in the top-right corner of any open file |
 | **Extensions panel** | Find *Keyword Expander* in your installed extensions, click the **⚙** gear icon, choose *Keyword Expander: Open Snippet Editor* |
 | **Command Palette** | `Ctrl+Shift+P` → `Keyword Expander: Open Snippet Editor` |
+
+---
+
+## Browse & Insert
+
+Press `Ctrl+Shift+K` (`Cmd+Shift+K` on Mac) to open a searchable Quick Pick of every snippet you have. Snippets are grouped by language and searchable by keyword, name, or description. Select one and it inserts directly at the cursor.
+
+This is the fastest way to reference and use a snippet without remembering the exact keyword — especially useful when you have a large library.
+
+You can also reach it from:
+
+| Where | How |
+|---|---|
+| **Keyboard** | `Ctrl+Shift+K` / `Cmd+Shift+K` (when editor is focused) |
+| **Editor title bar** | Click the **🔍** icon in the top-right corner of any open file |
+| **Command Palette** | `Ctrl+Shift+P` → `Keyword Expander: Browse & Insert Snippet` |
+
+To change the keybinding, open *File → Preferences → Keyboard Shortcuts* and search for `keywordExpander.browse`.
 
 ---
 
@@ -867,6 +906,7 @@ endif;
 
 | Shortcut | Action |
 |---|---|
+| `Ctrl+Shift+K` / `Cmd+Shift+K` | Browse & insert snippet (Quick Pick) |
 | `Ctrl+S` / `Cmd+S` | Save snippet |
 | `Ctrl+N` / `Cmd+N` | New snippet |
 | `Ctrl+R` / `Cmd+R` | Refresh from disk |
