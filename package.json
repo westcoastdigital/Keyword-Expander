@@ -48,19 +48,19 @@
           "when": "extension == simpliweb.keyword-expander"
         }
       ]
-    }
+    },
+    "keybindings": [
+      {
+        "command": "keywordExpander.browse",
+        "key": "ctrl+alt+k",
+        "mac": "cmd+alt+k",
+        "when": "editorTextFocus"
+      }
+    ]
   },
   "scripts": {
     "package": "vsce package"
   },
-  "keybindings": [
-    {
-      "command": "keywordExpander.browse",
-      "key": "ctrl+alt+k",
-      "mac": "cmd+alt+k",
-      "when": "editorTextFocus"
-    }
-  ],
   "devDependencies": {
     "@vscode/vsce": "^2.22.0"
   }
