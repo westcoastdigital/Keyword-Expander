@@ -297,7 +297,49 @@ function activate(context) {
         vscode.commands.registerCommand('keywordExpander.openEditor', () => openEditor())
     );
 
-    // ── Browse & Insert quick pick ───────────────────────────────────────
+    // ── Add selection as snippet ─────────────────────────────────────────
+    // Invoked from the editor right-click context menu when text is selected.
+    // Opens (or reveals) the snippet editor pre-filled with the selected text
+    // as the body, then focuses the Name field so you can complete the form.
+    context.subscriptions.push(
+        vscode.commands.registerCommand('keywordExpander.addFromSelection', () => {
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) return;
+
+            const selection = editor.selection;
+            if (selection.isEmpty) {
+                vscode.window.showInformationMessage(
+                    'Keyword Expander: Select some code first, then right-click to add it as a snippet.'
+                );
+                return;
+            }
+
+            const body     = editor.document.getText(selection);
+            const langId   = editor.document.languageId;
+
+            // Open/reveal the panel, then send the prefill once it's ready.
+            // openEditor() sets _panel; if the panel already existed the
+            // webview is still live, so we can post immediately after.
+            const alreadyOpen = !!_panel;
+            openEditor();
+
+            const doPost = () => {
+                if (_panel) {
+                    _panel.webview.postMessage({ type: 'prefill', body, langId });
+                }
+            };
+
+            if (alreadyOpen) {
+                // Panel was already open — webview is live, post straight away.
+                doPost();
+            } else {
+                // Panel was just created — give the webview a moment to
+                // initialise before posting (it fires 'ready' but we post
+                // on top of the normal load flow, so a short delay is enough).
+                setTimeout(doPost, 350);
+            }
+        })
+    );
     context.subscriptions.push(
         vscode.commands.registerCommand('keywordExpander.browse', async () => {
             const all = loadAllSnippets();
@@ -1100,6 +1142,27 @@ window.addEventListener('message', function(event) {
   }
   if (msg.type === 'importDone') {
     showToast('Imported ' + msg.count + ' snippet' + (msg.count !== 1 ? 's' : '') + '.');
+    return;
+  }
+  if (msg.type === 'prefill') {
+    // Triggered by "Add Selection as Snippet" — open a blank new-snippet
+    // form with the body pre-populated and the cursor in the Name field.
+    newSnippet();
+    document.getElementById('bodyInput').value = msg.body || '';
+    // Try to pre-select the matching language file
+    if (msg.langId) {
+      var fileSelect = document.getElementById('fileSelect');
+      // Find the option whose value ends with the langId (e.g. "php.json")
+      var matched = Array.from(fileSelect.options).find(function(o) {
+        return o.value === msg.langId + '.json' || o.value === msg.langId;
+      });
+      if (matched) {
+        fileSelect.value = matched.value;
+        updateScopeVisibility();
+      }
+    }
+    document.getElementById('nameInput').focus();
+    setStatus('Paste your selection is ready — fill in the name and keyword.');
     return;
   }
 });

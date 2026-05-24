@@ -26,6 +26,10 @@
       {
         "command": "keywordExpander.expand",
         "title": "Keyword Expander: Expand Keyword at Cursor"
+      },
+      {
+        "command": "keywordExpander.addFromSelection",
+        "title": "Keyword Expander: Add Selection as Snippet"
       }
     ],
     "menus": {
@@ -39,6 +43,13 @@
           "command": "keywordExpander.openEditor",
           "group": "navigation",
           "when": "true"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "keywordExpander.addFromSelection",
+          "group": "9_cutcopypaste@99",
+          "when": "editorHasSelection && !editorReadonly"
         }
       ],
       "extension/context": [
