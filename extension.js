@@ -363,10 +363,18 @@ function activate(context) {
             for (const lang of order) {
                 items.push({ label: lang, kind: vscode.QuickPickItemKind.Separator });
                 for (const s of groups[lang]) {
+                    // Embed tags as "tag:xxx" tokens in the detail field so
+                    // VS Code's native QuickPick filter handles tag: searches
+                    // directly — no custom onDidChangeValue logic needed.
+                    // e.g. typing "tag:woo" substring-matches "tag:woocommerce".
+                    const tagTokens = s.tags && s.tags.length
+                        ? s.tags.map(t => 'tag:' + t).join('  ')
+                        : '';
+                    const detailParts = [s.description, tagTokens].filter(Boolean);
                     items.push({
                         label:       s.prefix,
                         description: s.name,
-                        detail:      s.description || undefined,
+                        detail:      detailParts.length ? detailParts.join('   ·   ') : undefined,
                         snippet:     s,
                     });
                 }
@@ -378,42 +386,6 @@ function activate(context) {
             qp.matchOnDetail      = true;
             qp.placeholder        = 'Type a keyword, snippet name, or tag:woo…';
             qp.title              = 'Keyword Expander — Browse & Insert';
-
-            // Tag filter: when the user types "tag:xxx" we re-build items
-            // filtered to snippets whose tags contain the substring.
-            qp.onDidChangeValue(value => {
-                const tagMatch = value.match(/(?:^|\s)tag:(\S*)/i);
-                if (!tagMatch) {
-                    qp.items = items;   // back to full list
-                    return;
-                }
-                const needle = tagMatch[1].toLowerCase();
-                const filtered = all.filter(s =>
-                    s.tags && s.tags.some(t => t.includes(needle))
-                );
-                // Re-group filtered results
-                const fg = {}, fo = [];
-                for (const s of filtered) {
-                    if (!fg[s.langLabel]) { fg[s.langLabel] = []; fo.push(s.langLabel); }
-                    fg[s.langLabel].push(s);
-                }
-                const tagItems = [];
-                for (const lang of fo) {
-                    tagItems.push({ label: lang, kind: vscode.QuickPickItemKind.Separator });
-                    for (const s of fg[lang]) {
-                        const tagStr = s.tags.length ? ' [' + s.tags.join(', ') + ']' : '';
-                        tagItems.push({
-                            label:       s.prefix,
-                            description: s.name + tagStr,
-                            detail:      s.description || undefined,
-                            snippet:     s,
-                        });
-                    }
-                }
-                qp.items = tagItems.length
-                    ? tagItems
-                    : [{ label: 'No snippets match tag "' + needle + '"', kind: vscode.QuickPickItemKind.Separator }];
-            });
 
             qp.onDidAccept(async () => {
                 const picked = qp.selectedItems[0];

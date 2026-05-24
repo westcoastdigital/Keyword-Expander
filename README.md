@@ -114,6 +114,27 @@ The snippet is written immediately to your VS Code snippets directory and availa
 
 ---
 
+## Add selection as snippet
+
+The fastest way to create a snippet from code you've already written. Select any block of code in the editor, right-click, and choose **Keyword Expander: Add Selection as Snippet**.
+
+The snippet editor opens beside your file with the selected code pre-loaded in the Body field and the language automatically matched to the file you're working in. All that's left is to fill in the name, keyword, and any optional fields, then save.
+
+**Step by step:**
+
+1. Select the code you want to turn into a snippet
+2. Right-click → **Keyword Expander: Add Selection as Snippet**
+3. The editor panel opens with the body pre-filled
+4. Enter a **Snippet Name** and **Prefix / Keyword** (the cursor lands on Name automatically)
+5. Optionally add a Description and Tags
+6. Click **Save Snippet** or press `Ctrl+S`
+
+You can also trigger it via the Command Palette: `Ctrl+Shift+P` → `Keyword Expander: Add Selection as Snippet`.
+
+> **Tip:** The Prefix field is intentionally left blank — there's no reliable way to guess a good keyword from arbitrary code, so you're always prompted to choose one.
+
+---
+
 ## Searching & filtering
 
 The sidebar search box and the Browse & Insert Quick Pick both support the same filter syntax.
