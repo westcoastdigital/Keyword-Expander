@@ -73,7 +73,7 @@ There are four ways to open the snippet editor — no Command Palette required:
 
 ## Browse & Insert
 
-Press `Ctrl+Shift+K` (`Cmd+Shift+K` on Mac) to open a searchable Quick Pick of every snippet you have. Snippets are grouped by language and searchable by keyword, name, or description. Select one and it inserts directly at the cursor.
+Press `Ctrl+Alt+K` (`Cmd+Alt+K` on Mac) to open a searchable Quick Pick of every snippet you have. Snippets are grouped by language and searchable by keyword, name, or description. Select one and it inserts directly at the cursor.
 
 This is the fastest way to reference and use a snippet without remembering the exact keyword — especially useful when you have a large library.
 
@@ -81,7 +81,7 @@ You can also reach it from:
 
 | Where | How |
 |---|---|
-| **Keyboard** | `Ctrl+Shift+K` / `Cmd+Shift+K` (when editor is focused) |
+| **Keyboard** | `Ctrl+Alt+K` / `Cmd+Alt+K` (when editor is focused) |
 | **Editor title bar** | Click the **🔍** icon in the top-right corner of any open file |
 | **Command Palette** | `Ctrl+Shift+P` → `Keyword Expander: Browse & Insert Snippet` |
 
@@ -906,7 +906,7 @@ endif;
 
 | Shortcut | Action |
 |---|---|
-| `Ctrl+Shift+K` / `Cmd+Shift+K` | Browse & insert snippet (Quick Pick) |
+| `Ctrl+Alt+K` / `Cmd+Alt+K` | Browse & insert snippet (Quick Pick) |
 | `Ctrl+S` / `Cmd+S` | Save snippet |
 | `Ctrl+N` / `Cmd+N` | New snippet |
 | `Ctrl+R` / `Cmd+R` | Refresh from disk |

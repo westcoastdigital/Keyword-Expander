@@ -56,8 +56,8 @@
   "keybindings": [
     {
       "command": "keywordExpander.browse",
-      "key": "ctrl+shift+k",
-      "mac": "cmd+shift+k",
+      "key": "ctrl+alt+k",
+      "mac": "cmd+alt+k",
       "when": "editorTextFocus"
     }
   ],
