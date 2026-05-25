@@ -2,7 +2,7 @@
 
 A VS Code extension with a visual editor for creating and managing keyword shortcuts that expand into full code snippets. Reads and writes to your real VS Code snippet files — so existing snippets load automatically, new ones appear in IntelliSense straight away, and everything syncs via VS Code Settings Sync.
 
-![Keyword Expander — snippet editor showing the WordPress Theme Header snippet](screenshot.jpeg)
+![Keyword Expander — snippet editor showing the WordPress Theme Header snippet](screenshot.jpg)
 
 ---
 
