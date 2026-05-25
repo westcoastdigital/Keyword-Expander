@@ -135,6 +135,63 @@ You can also trigger it via the Command Palette: `Ctrl+Shift+P` → `Keyword Exp
 
 ---
 
+## Auto Tab Stops
+
+Once you have code in the Body field — whether typed manually or pasted via **Add Selection as Snippet** — click **⚡ Auto Tab Stops** to automatically convert it into a proper VS Code snippet with linked tab stops and placeholders.
+
+### What it does
+
+The button scans the body for patterns that are worth turning into tab stops and converts them in one click:
+
+**Repeated identifiers** — if a function name, variable, or any identifier appears more than once (including inside quoted strings), all occurrences are linked to the same tab stop. Changing the placeholder once updates every instance.
+
+**Inline comments** — `// my comment` becomes `// ${N:my comment}` so you can quickly replace placeholder comments with real code as you tab through.
+
+**Repeated string literals** — if the same quoted string appears in multiple places, it becomes a linked tab stop so both instances stay in sync.
+
+**Dollar signs** — any `$` in the body (PHP variables, etc.) is automatically escaped to `\$` so VS Code doesn't misinterpret it as a tab stop.
+
+**Cursor position** — `$0` is appended at the end, placing the final cursor after all tab stops are filled.
+
+### Example
+
+Paste this via **Add Selection as Snippet**:
+
+```php
+function my_custom_hook() {
+
+    // add your code here
+
+}
+add_action( 'init', 'my_custom_hook' );
+```
+
+Click **⚡ Auto Tab Stops** and the body becomes:
+
+```php
+function ${1:my_custom_hook}() {
+
+    // ${2:add your code here}
+
+}
+add_action( 'init', '${1}' );
+$0
+```
+
+`my_custom_hook` is linked — tab to `${1}` and type your function name once; both the definition and the `add_action` reference update together.
+
+### What it won't touch
+
+Common WordPress, WooCommerce, PHP, and JavaScript built-in function names are on a skip list and are never converted to tab stops — so `add_action`, `get_template_directory`, `esc_html`, `wc_price`, etc. pass through unchanged.
+
+### Notes
+
+- The button checks for existing `${N}` tab stops before running. If the body already has tab stops it will ask you to clear them first to avoid double-processing.
+- Auto Tab Stops is a starting point, not a final step — review the result and tweak the tab stop numbers, placeholders, and order to match how you actually want to tab through the snippet.
+- Not every snippet benefits from it. Simple single-use snippets with no repeated identifiers won't produce any tab stops and the button will tell you so.
+
+---
+
 ## Searching & filtering
 
 The sidebar search box and the Browse & Insert Quick Pick both support the same filter syntax.
