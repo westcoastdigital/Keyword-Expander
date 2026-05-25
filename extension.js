@@ -363,10 +363,17 @@ function activate(context) {
             for (const lang of order) {
                 items.push({ label: lang, kind: vscode.QuickPickItemKind.Separator });
                 for (const s of groups[lang]) {
+                    // Embed tags as "tag:xxx" tokens in the detail field so
+                    // VS Code's native filter matches e.g. "tag:woo" as a
+                    // substring of "tag:woocommerce" — no custom handler needed.
+                    const tagTokens = s.tags && s.tags.length
+                        ? s.tags.map(t => 'tag:' + t).join('  ')
+                        : '';
+                    const detailParts = [s.description, tagTokens].filter(Boolean);
                     items.push({
                         label:       s.prefix,
                         description: s.name,
-                        detail:      s.description || undefined,
+                        detail:      detailParts.length ? detailParts.join('   ·   ') : undefined,
                         snippet:     s,
                     });
                 }
@@ -378,42 +385,6 @@ function activate(context) {
             qp.matchOnDetail      = true;
             qp.placeholder        = 'Type a keyword, snippet name, or tag:woo…';
             qp.title              = 'Keyword Expander — Browse & Insert';
-
-            // Tag filter: when the user types "tag:xxx" we re-build items
-            // filtered to snippets whose tags contain the substring.
-            qp.onDidChangeValue(value => {
-                const tagMatch = value.match(/(?:^|\s)tag:(\S*)/i);
-                if (!tagMatch) {
-                    qp.items = items;   // back to full list
-                    return;
-                }
-                const needle = tagMatch[1].toLowerCase();
-                const filtered = all.filter(s =>
-                    s.tags && s.tags.some(t => t.includes(needle))
-                );
-                // Re-group filtered results
-                const fg = {}, fo = [];
-                for (const s of filtered) {
-                    if (!fg[s.langLabel]) { fg[s.langLabel] = []; fo.push(s.langLabel); }
-                    fg[s.langLabel].push(s);
-                }
-                const tagItems = [];
-                for (const lang of fo) {
-                    tagItems.push({ label: lang, kind: vscode.QuickPickItemKind.Separator });
-                    for (const s of fg[lang]) {
-                        const tagStr = s.tags.length ? ' [' + s.tags.join(', ') + ']' : '';
-                        tagItems.push({
-                            label:       s.prefix,
-                            description: s.name + tagStr,
-                            detail:      s.description || undefined,
-                            snippet:     s,
-                        });
-                    }
-                }
-                qp.items = tagItems.length
-                    ? tagItems
-                    : [{ label: 'No snippets match tag "' + needle + '"', kind: vscode.QuickPickItemKind.Separator }];
-            });
 
             qp.onDidAccept(async () => {
                 const picked = qp.selectedItems[0];
@@ -660,6 +631,253 @@ function openEditor() {
     });
 
     _panel.onDidDispose(() => { _panel = null; });
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Auto Tab Stops — defined as real Node.js functions so backslash escapes,
+// regex literals, and string quoting all work normally.  They are injected
+// into the webview HTML via Function.prototype.toString(), which preserves
+// the original source exactly.  The _wv_ prefix is stripped on injection.
+// ───────────────────────────────────────────────────────────────────────────
+
+function _wv_autoTabStops() {
+    var textarea = document.getElementById('bodyInput');
+    var body     = textarea.value;
+    if (!body.trim()) { setStatus('Body is empty — nothing to process.', true); return; }
+
+    // Detect existing tab stops without relying on \d (scan char by char)
+    var hasStops = false;
+    for (var ci = 0; ci < body.length - 1; ci++) {
+        if (body[ci] === '$') {
+            var nx = body[ci + 1];
+            if (nx === '{' || (nx >= '0' && nx <= '9')) { hasStops = true; break; }
+        }
+    }
+    if (hasStops) {
+        setStatus('Body already has tab stops. Clear them first to regenerate.', true);
+        return;
+    }
+
+    var result = buildAutoTabStops(body);
+
+    // Count generated tab stops by scanning for '${'
+    var added = 0, si = 0;
+    while ((si = result.indexOf('${', si)) !== -1) { added++; si++; }
+
+    if (added === 0) {
+        setStatus('No repeated identifiers or comments found to convert.', true);
+        return;
+    }
+    textarea.value = result;
+    setStatus('Generated ' + added + ' tab stop' + (added !== 1 ? 's' : '') + ' — review and tweak as needed.');
+}
+
+function _wv_buildAutoTabStops(code) {
+    var SKIP = {};
+    ('function return var let const if else for while do switch case break ' +
+     'continue new this typeof instanceof true false null undefined class ' +
+     'extends import export default async await try catch finally throw ' +
+     'delete void yield super static get set of in ' +
+     'echo print array list isset empty unset die exit include require ' +
+     'include_once require_once use namespace abstract final interface ' +
+     'implements clone match fn public private protected global foreach ' +
+     'endforeach endwhile endif endfor elseif self parent ' +
+     'add_action add_filter remove_action remove_filter do_action ' +
+     'apply_filters has_action has_filter wp_enqueue_script wp_enqueue_style ' +
+     'wp_register_script wp_register_style wp_localize_script ' +
+     'get_template_directory get_template_directory_uri ' +
+     'get_stylesheet_directory get_stylesheet_directory_uri ' +
+     'plugin_dir_path plugin_dir_url plugin_basename ' +
+     'register_post_type register_taxonomy WP_Query wp_reset_postdata ' +
+     'setup_postdata the_post have_posts the_title the_content the_excerpt ' +
+     'the_permalink the_ID get_the_title get_the_ID get_the_content ' +
+     'get_post_meta update_post_meta delete_post_meta add_post_meta ' +
+     'get_field the_field have_rows the_row get_sub_field the_sub_field ' +
+     'get_option update_option delete_option add_option ' +
+     'get_transient set_transient delete_transient ' +
+     'add_shortcode shortcode_atts do_shortcode ' +
+     'sanitize_text_field sanitize_email sanitize_url sanitize_key ' +
+     'esc_html esc_attr esc_url esc_js esc_html__ esc_attr__ ' +
+     'esc_html_e esc_attr_e __ _e _n _x _nx ' +
+     'wp_nonce_field wp_verify_nonce check_admin_referer ' +
+     'is_admin is_user_logged_in current_user_can wp_die wp_redirect ' +
+     'wp_safe_redirect woocommerce_form_field wc_add_notice wc_price WC ' +
+     'wc_get_product wc_get_order acf_add_local_field_group ' +
+     'register_nav_menus register_nav_menu register_sidebar ' +
+     'add_theme_support load_theme_textdomain add_image_size ' +
+     'add_menu_page add_submenu_page add_meta_box ' +
+     'register_setting add_settings_field add_settings_section ' +
+     'file_exists class_exists function_exists defined define ' +
+     'ABSPATH post page args wpdb order product user item'
+    ).split(' ').forEach(function(w) { if (w) SKIP[w] = 1; });
+
+    var nextNum = 1;
+
+    // Blank strings/comments so we count only BARE identifier occurrences
+    function blankStringsAndComments(src) {
+        var out = '', i = 0, n = src.length;
+        while (i < n) {
+            var c = src[i];
+            if (c === '/' && src[i+1] === '/') {
+                var e = src.indexOf('\n', i); if (e < 0) e = n;
+                out += ' '.repeat(e - i); i = e; continue;
+            }
+            if (c === '/' && src[i+1] === '*') {
+                var e = src.indexOf('*/', i+2); e = e < 0 ? n : e + 2;
+                out += ' '.repeat(e - i); i = e; continue;
+            }
+            if (c === "'") {
+                var j = i + 1;
+                while (j < n && !(src[j] === "'" && src[j-1] !== '\\')) j++;
+                out += ' '.repeat(j + 1 - i); i = j + 1; continue;
+            }
+            if (c === '"') {
+                var j = i + 1;
+                while (j < n && !(src[j] === '"' && src[j-1] !== '\\')) j++;
+                out += ' '.repeat(j + 1 - i); i = j + 1; continue;
+            }
+            out += c; i++;
+        }
+        return out;
+    }
+
+    // Step 1 — bare identifier counts (outside strings/comments)
+    var bareCode = blankStringsAndComments(code);
+    var bareCounts = {}, m;
+    var reWord = /\b([a-zA-Z_][a-zA-Z0-9_]{2,})\b/g;
+    reWord.lastIndex = 0;
+    while ((m = reWord.exec(bareCode)) !== null) {
+        var w = m[1]; if (!SKIP[w]) bareCounts[w] = (bareCounts[w] || 0) + 1;
+    }
+
+    // Step 2 — strings whose ENTIRE content is a plain identifier
+    // e.g. add_action('the_hook', 'my_func') → 'my_func' links to the bare definition
+    var strIdentCounts = {};
+    var reStrIdent = /'([a-zA-Z_][a-zA-Z0-9_]{2,})'/g;
+    reStrIdent.lastIndex = 0;
+    while ((m = reStrIdent.exec(code)) !== null) {
+        var w = m[1]; if (!SKIP[w]) strIdentCounts[w] = (strIdentCounts[w] || 0) + 1;
+    }
+
+    // Build identifier → tab stop number map, ordered by first bare occurrence
+    var identStopMap = {}, seenId = {};
+    var reWord2 = /\b([a-zA-Z_][a-zA-Z0-9_]{2,})\b/g;
+    reWord2.lastIndex = 0;
+    while ((m = reWord2.exec(bareCode)) !== null) {
+        var w = m[1];
+        if (SKIP[w] || seenId[w]) continue;
+        seenId[w] = 1;
+        if ((bareCounts[w] || 0) + (strIdentCounts[w] || 0) >= 2) {
+            identStopMap[w] = nextNum++;
+        }
+    }
+
+    // Step 3 — repeated single-quoted string literals not already covered above
+    var strCounts = {}, strStopMap = {}, strSeen = {};
+    var reStrLit = /'([^'\\\n]{3,})'/g;
+    reStrLit.lastIndex = 0;
+    while ((m = reStrLit.exec(code)) !== null) {
+        strCounts[m[1]] = (strCounts[m[1]] || 0) + 1;
+    }
+    reStrLit.lastIndex = 0;
+    while ((m = reStrLit.exec(code)) !== null) {
+        var s = m[1];
+        if (strCounts[s] < 2 || strSeen[s]) continue;
+        strSeen[s] = 1;
+        if (identStopMap.hasOwnProperty(s)) continue;
+        // Skip if the string contains an identifier already mapped
+        var inner = /\b([a-zA-Z_][a-zA-Z0-9_]{2,})\b/g, mm, hit = false;
+        while ((mm = inner.exec(s)) !== null) {
+            if (identStopMap.hasOwnProperty(mm[1])) { hit = true; break; }
+        }
+        if (!hit) strStopMap[s] = nextNum++;
+    }
+
+    // Step 4 — emit output character by character
+    var out = '', i = 0, len = code.length, firstId = {}, firstStr = {};
+
+    function peek(n) { return i + n < len ? code[i + n] : ''; }
+
+    function emitIdent(word) {
+        if (!identStopMap.hasOwnProperty(word)) return word;
+        var num = identStopMap[word];
+        if (!firstId[word]) { firstId[word] = 1; return '${' + num + ':' + word + '}'; }
+        return '${' + num + '}';
+    }
+
+    function processInside(start, end) {
+        var s = '', k = start;
+        while (k < end) {
+            if (/[a-zA-Z_]/.test(code[k])) {
+                var kj = k;
+                while (kj < end && /[a-zA-Z0-9_]/.test(code[kj])) kj++;
+                s += emitIdent(code.slice(k, kj)); k = kj;
+            } else { s += code[k++]; }
+        }
+        return s;
+    }
+
+    while (i < len) {
+        var c = code[i];
+
+        // Line comment → convert text to tab stop
+        if (c === '/' && peek(1) === '/') {
+            var e = code.indexOf('\n', i); if (e < 0) e = len;
+            var txt = code.slice(i + 2, e).trim();
+            out += txt ? '// ${' + nextNum++ + ':' + txt + '}' : '//';
+            i = e; continue;
+        }
+        // Block comment → pass through unchanged
+        if (c === '/' && peek(1) === '*') {
+            var cl = code.indexOf('*/', i + 2);
+            var be = cl < 0 ? len : cl + 2;
+            out += code.slice(i, be); i = be; continue;
+        }
+        // Single-quoted string
+        if (c === "'") {
+            var j = i + 1;
+            while (j < len && !(code[j] === "'" && code[j-1] !== '\\')) j++;
+            var content = code.slice(i + 1, j);
+            if (strStopMap.hasOwnProperty(content)) {
+                var num = strStopMap[content];
+                if (!firstStr[content]) {
+                    firstStr[content] = 1;
+                    out += "'" + '${' + num + ':' + content + "}'" ;
+                } else {
+                    out += "'" + '${' + num + "}'" ;
+                }
+            } else {
+                out += "'" + processInside(i + 1, j) + "'";
+            }
+            i = j + 1; continue;
+        }
+        // Double-quoted string
+        if (c === '"') {
+            var j = i + 1;
+            while (j < len && !(code[j] === '"' && code[j-1] !== '\\')) j++;
+            out += '"' + processInside(i + 1, j) + '"';
+            i = j + 1; continue;
+        }
+        // Identifier
+        if (/[a-zA-Z_]/.test(c)) {
+            var j = i; while (j < len && /[a-zA-Z0-9_]/.test(code[j])) j++;
+            out += emitIdent(code.slice(i, j)); i = j; continue;
+        }
+        // Dollar sign — escape for VS Code snippet syntax
+        if (c === '$') { out += '\\$'; i++; continue; }
+
+        out += c; i++;
+    }
+
+    if (out.length && out[out.length - 1] !== '\n') out += '\n';
+    out += '$0';
+    return out;
+}
+
+// Inject the above functions into the webview by serialising their source.
+// The _wv_ prefix is stripped so the webview sees the correct function names.
+function _wvSrc(fn, name) {
+    return fn.toString().replace('_wv_' + name, name);
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -981,6 +1199,7 @@ textarea{
 
 /* ── Tags input (form) ────────────────────────────────────────── */
 .tags-hint{font-size:10px;opacity:0.45;margin-top:2px;}
+.btn-auto{font-size:10px;padding:2px 8px;margin-left:auto;flex-shrink:0;}
 </style>
 </head>
 <body>
@@ -1075,6 +1294,7 @@ textarea{
             &nbsp;&middot;&nbsp; Literal \$: <code>\\\$</code>
             &nbsp;&middot;&nbsp; Variables: <code>\$TM_FILENAME</code>
           </span>
+          <button class="btn btn-secondary btn-auto" onclick="autoTabStops()" title="Scan for repeated identifiers and convert to VS Code tab stops">&#9889;&nbsp;Auto Tab Stops</button>
         </div>
         <textarea id="bodyInput" spellcheck="false"
           placeholder="Enter the snippet body here&#x2026;&#10;&#10;Examples:&#10;  \$1, \$2           tab stops&#10;  \${1:label}       placeholder&#10;  \\\$variable       literal dollar sign (PHP etc.)&#10;  \$TM_FILENAME    current filename"
@@ -1434,6 +1654,11 @@ function deleteSnippet(id) {
     showToast('"' + s.name + '" deleted.');
   });
 }
+
+/* ── Auto tab stops ──────────────────────────────────────────────────── */
+${_wvSrc(_wv_autoTabStops, 'autoTabStops')}
+
+${_wvSrc(_wv_buildAutoTabStops, 'buildAutoTabStops')}
 
 /* ── Preview in active editor ────────────────────────────────────────── */
 function previewSnippet() {
