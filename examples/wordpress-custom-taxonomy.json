@@ -1,0 +1,19 @@
+{
+	"keywordExpander": true,
+	"version": 1,
+	"exported": "2026-05-26T00:22:29.836Z",
+	"snippets": [
+		{
+			"file": "php.json",
+			"name": "WordPress Custom Taxonomy",
+			"prefix": "wptax",
+			"body": "/**\n * Register Custom Post Type Helper\n *\n * @param string $post_type CPT slug.\n * @param string $singular Singular label.\n * @param string $plural Plural label.\n * @param array  $args Additional args.\n */\nfunction ${1:custom_register_post_type}(\\$${2:post_type}, \\$${3:singular}, \\$${4:plural}, \\$args = array()) {\n\n    \\$${5:labels} = array(\n        'name'               => \\$${4},\n        'singular_name'      => \\$${3},\n        'menu_name'          => \\$${4},\n        'add_new_item'       => \"Add New {$${3}}\",\n        'edit_item'          => \"Edit {$${3}}\",\n        'new_item'           => \"New {$${3}}\",\n        'view_item'          => \"View {$${3}}\",\n        'search_items'       => \"Search {$${4}}\",\n        'all_items'          => \"All {$${4}}\",\n        'not_found'          => \"No {$${4}} found\",\n        'not_found_in_trash' => \"No {$${4}} found in Trash\",\n    );\n\n    \\$${6:defaults} = array(\n        '${5}'        => \\$${5},\n        'public'        => true,\n        'show_in_rest'  => true,\n        'has_archive'   => true,\n        'supports'      => array(\n            'title',\n            'editor',\n            'thumbnail'\n        ),\n        'rewrite'       => array(\n            'slug' => sanitize_title(\\$${4})\n        ),\n    );\n\n    register_post_type(\n        \\$${2},\n        wp_parse_args(\\$args, \\$${6})\n    );\n}\n\nadd_action('init', function () {\n\n    ${1}(\n        'book',\n        'Book',\n        'Books',\n        array(\n            'menu_icon' => '${5:dashicons-book}'\n        )\n    );\n\n});\n$0",
+			"description": "Register a custom taxonomy",
+			"scope": "",
+			"tags": [
+				"php",
+				"wordpress"
+			]
+		}
+	]
+}

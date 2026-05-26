@@ -1,0 +1,19 @@
+{
+	"keywordExpander": true,
+	"version": 1,
+	"exported": "2026-05-26T00:19:59.914Z",
+	"snippets": [
+		{
+			"file": "php.json",
+			"name": "WordPress Custom Post Type",
+			"prefix": "wpcpt",
+			"body": "/**\n * Register Custom Post Type\n */\nfunction ${1:register_books_post_type}() {\n\n    \\$${2:labels} = array(\n        'name'                  => __('${3:Books}', '${4:textdomain}'),\n        'singular_name'         => __('${5:Book}', '${4}'),\n        'menu_name'             => __('${3}', '${4}'),\n        'name_admin_bar'        => __('${5}', '${4}'),\n        'add_new'               => __('Add New', '${4}'),\n        'add_new_item'          => __('Add New ${5}', '${4}'),\n        'new_item'              => __('New ${5}', '${4}'),\n        'edit_item'             => __('Edit ${5}', '${4}'),\n        'view_item'             => __('View ${3}', '${4}'),\n        'all_items'             => __('All ${3}', '${4}'),\n        'search_items'          => __('Search ${3}', '${4}'),\n        'not_found'             => __('No ${6:books} found.', '${4}'),\n        'not_found_in_trash'    => __('No ${6} found in Trash.', '${4}'),\n    );\n\n    \\$args = array(\n        'label'                 => __('${5}', '${4}'),\n        '${2}'                => \\$${2},\n        'public'                => true,\n        'show_ui'               => true,\n        'show_in_menu'          => true,\n        'show_in_rest'          => true,\n        'menu_position'         => ${7:20},\n        'menu_icon'             => '${8:dashicons-book}',\n        'supports'              => array(\n            'title',\n            'editor',\n            'thumbnail',\n            'excerpt',\n            'revisions'\n        ),\n        'has_archive'           => true,\n        'rewrite'               => array(\n            'slug' => '{9:book}',\n            'with_front' => false\n        ),\n        'hierarchical'          => false,\n        'publicly_queryable'    => true,\n        'exclude_from_search'   => false,\n        'query_var'             => true,\n        'capability_type'       => 'post',\n    );\n\n    register_post_type('${9}', \\$args);\n\n}\nadd_action('init', '${1}');\n$0",
+			"description": "WordPress custom post type",
+			"scope": "",
+			"tags": [
+				"php",
+				"wordpress"
+			]
+		}
+	]
+}

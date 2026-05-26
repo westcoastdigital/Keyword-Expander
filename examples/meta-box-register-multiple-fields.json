@@ -1,0 +1,19 @@
+{
+	"keywordExpander": true,
+	"version": 1,
+	"exported": "2026-05-26T00:05:42.410Z",
+	"snippets": [
+		{
+			"file": "php.json",
+			"name": "Meta Box register multiple fields",
+			"prefix": "mbfields",
+			"body": "add_filter( 'rwmb_meta_boxes', '${1:prefix}_register_meta_boxes' );\n\nfunction ${1:prefix}_register_meta_boxes( \\$meta_boxes ) {\n    \\$meta_boxes[] = [\n        'title'      => '${2:Box Title}',\n        'id'         => '${3:box-id}',\n        'post_types' => [ '${4:post}' ],\n        'fields'     => [\n            [\n                'id'   => '${5:text_field}',\n                'name' => '${6:Text Field}',\n                'type' => 'text',\n            ],\n            [\n                'id'   => '${7:textarea_field}',\n                'name' => '${8:Textarea Field}',\n                'type' => 'textarea',\n                'rows' => 4,\n            ],\n            [\n                'id'   => '${9:image_field}',\n                'name' => '${10:Image}',\n                'type' => 'image_advanced',\n            ],\n        ],\n    ];\n    return \\$meta_boxes;\n}\n$0",
+			"description": "Register a Meta Box with text, textarea, and image fields",
+			"scope": "",
+			"tags": [
+				"metabox",
+				"custom-fields"
+			]
+		}
+	]
+}

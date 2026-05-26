@@ -1,0 +1,19 @@
+{
+	"keywordExpander": true,
+	"version": 1,
+	"exported": "2026-05-26T00:06:36.887Z",
+	"snippets": [
+		{
+			"file": "php.json",
+			"name": "Meta Box get field value",
+			"prefix": "mbget",
+			"body": "\\$${1:value} = rwmb_meta( '${2:field_id}' );\n$0",
+			"description": "Get a single Meta Box field value with rwmb_meta()",
+			"scope": "",
+			"tags": [
+				"metabox",
+				"custom-fields"
+			]
+		}
+	]
+}

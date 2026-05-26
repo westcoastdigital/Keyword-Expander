@@ -316,9 +316,12 @@ The `examples/` folder in this repository contains ready-to-import snippet packs
 | `hooks-filters.json` | 4 | `add_action`, `add_filter`, class-method variants, standalone filter callback |
 | `enqueue.json` | 2 | Script with `wp_localize_script`, stylesheet |
 | `ajax.json` | 2 | PHP AJAX handler (front + admin), `fetch()` JS call |
-| `custom-post-types.json` | 2 | Register CPT, register taxonomy |
+| `wordpress-custom-post-type.json` | 1 | Full CPT registration with labels, supports, rewrite, menu icon |
+| `wordpress-custom-taxonomy.json` | 1 | Reusable CPT helper function with `wp_parse_args` pattern |
 | `admin-ui.json` | 2 | Admin menu page, Settings API field |
 | `acf.json` | 8 | `get_field`, text, image, repeater, flexible content, options, link, field group registration |
+| `meta-box-register-multiple-fields.json` | 1 | Register a Meta Box with text, textarea, and image fields |
+| `meta-box-get-field-value.json` | 1 | Get a single field value with `rwmb_meta()` |
 | `woocommerce.json` | 4 | Product price, shop columns, custom checkout field, save order meta |
 | `theme.json` | 3 | Theme setup, register sidebar, `WP_Query` loop |
 
@@ -617,52 +620,134 @@ fetch( MyPlugin.ajaxurl, {
 
 ### Custom post types
 
-#### Register custom post type
+#### WordPress Custom Post Type
 
 ```
-Name:     Register custom post type
-Prefix:   regcpt
+Name:     WordPress Custom Post Type
+Prefix:   wpcpt
 Language: PHP
+Tags:     php, wordpress
 Body:
-add_action( 'init', '${1:prefix}_register_${2:cpt}' );
+/**
+ * Register Custom Post Type
+ */
+function ${1:register_books_post_type}() {
 
-function ${1:prefix}_register_${2:cpt}() {
-    register_post_type( '${2:cpt}', [
-        'labels'  => [
-            'name'          => __( '${3:Items}',  '${4:text-domain}' ),
-            'singular_name' => __( '${5:Item}',   '${4:text-domain}' ),
-            'add_new_item'  => __( 'Add new ${5:Item}', '${4:text-domain}' ),
-        ],
-        'public'            => true,
-        'show_in_rest'      => true,
-        'has_archive'       => true,
-        'supports'          => [ 'title', 'editor', 'thumbnail' ],
-        'menu_icon'         => 'dashicons-${6:admin-post}',
-        'rewrite'           => [ 'slug' => '${7:items}' ],
-    ] );
+    \$${2:labels} = array(
+        'name'                  => __('${3:Books}', '${4:textdomain}'),
+        'singular_name'         => __('${5:Book}', '${4}'),
+        'menu_name'             => __('${3}', '${4}'),
+        'name_admin_bar'        => __('${5}', '${4}'),
+        'add_new'               => __('Add New', '${4}'),
+        'add_new_item'          => __('Add New ${5}', '${4}'),
+        'new_item'              => __('New ${5}', '${4}'),
+        'edit_item'             => __('Edit ${5}', '${4}'),
+        'view_item'             => __('View ${3}', '${4}'),
+        'all_items'             => __('All ${3}', '${4}'),
+        'search_items'          => __('Search ${3}', '${4}'),
+        'not_found'             => __('No ${6:books} found.', '${4}'),
+        'not_found_in_trash'    => __('No ${6} found in Trash.', '${4}'),
+    );
+
+    \$args = array(
+        'label'               => __('${5}', '${4}'),
+        '${2}'                => \$${2},
+        'public'              => true,
+        'show_ui'             => true,
+        'show_in_menu'        => true,
+        'show_in_rest'        => true,
+        'menu_position'       => ${7:20},
+        'menu_icon'           => '${8:dashicons-book}',
+        'supports'            => array(
+            'title',
+            'editor',
+            'thumbnail',
+            'excerpt',
+            'revisions'
+        ),
+        'has_archive'         => true,
+        'rewrite'             => array(
+            'slug'       => '${9:book}',
+            'with_front' => false
+        ),
+        'hierarchical'        => false,
+        'publicly_queryable'  => true,
+        'exclude_from_search' => false,
+        'query_var'           => true,
+        'capability_type'     => 'post',
+    );
+
+    register_post_type('${9}', \$args);
+
 }
+add_action('init', '${1}');
 ```
 
-#### Register custom taxonomy
+#### WordPress Custom Taxonomy (reusable helper)
 
 ```
-Name:     Register custom taxonomy
-Prefix:   regtax
+Name:     WordPress Custom Taxonomy
+Prefix:   wptax
 Language: PHP
+Tags:     php, wordpress
 Body:
-add_action( 'init', '${1:prefix}_register_${2:taxonomy}' );
+/**
+ * Register Custom Post Type Helper
+ *
+ * @param string $post_type CPT slug.
+ * @param string $singular  Singular label.
+ * @param string $plural    Plural label.
+ * @param array  $args      Additional args.
+ */
+function ${1:custom_register_post_type}(\$${2:post_type}, \$${3:singular}, \$${4:plural}, \$args = array()) {
 
-function ${1:prefix}_register_${2:taxonomy}() {
-    register_taxonomy( '${2:taxonomy}', '${3:post_type}', [
-        'labels'       => [
-            'name'          => __( '${4:Categories}', '${5:text-domain}' ),
-            'singular_name' => __( '${6:Category}',   '${5:text-domain}' ),
-        ],
-        'hierarchical' => true,
-        'show_in_rest' => true,
-        'rewrite'      => [ 'slug' => '${7:category}' ],
-    ] );
+    \$${5:labels} = array(
+        'name'               => \$${4},
+        'singular_name'      => \$${3},
+        'menu_name'          => \$${4},
+        'add_new_item'       => "Add New {\$${3}}",
+        'edit_item'          => "Edit {\$${3}}",
+        'new_item'           => "New {\$${3}}",
+        'view_item'          => "View {\$${3}}",
+        'search_items'       => "Search {\$${4}}",
+        'all_items'          => "All {\$${4}}",
+        'not_found'          => "No {\$${4}} found",
+        'not_found_in_trash' => "No {\$${4}} found in Trash",
+    );
+
+    \$${6:defaults} = array(
+        '${5}'         => \$${5},
+        'public'        => true,
+        'show_in_rest'  => true,
+        'has_archive'   => true,
+        'supports'      => array(
+            'title',
+            'editor',
+            'thumbnail'
+        ),
+        'rewrite'       => array(
+            'slug' => sanitize_title(\$${4})
+        ),
+    );
+
+    register_post_type(
+        \$${2},
+        wp_parse_args(\$args, \$${6})
+    );
 }
+
+add_action('init', function () {
+
+    ${1}(
+        'book',
+        'Book',
+        'Books',
+        array(
+            'menu_icon' => '${5:dashicons-book}'
+        )
+    );
+
+});
 ```
 
 ---
@@ -862,6 +947,59 @@ function ${1:prefix}_register_fields() {
         ],
     ] );
 }
+```
+
+---
+
+### Meta Box
+
+#### Register a meta box (multiple fields)
+
+```
+Name:     Meta Box register multiple fields
+Prefix:   mbfields
+Language: PHP
+Tags:     metabox, custom-fields
+Body:
+add_filter( 'rwmb_meta_boxes', '${1:prefix}_register_meta_boxes' );
+
+function ${1:prefix}_register_meta_boxes( \$meta_boxes ) {
+    \$meta_boxes[] = [
+        'title'      => '${2:Box Title}',
+        'id'         => '${3:box-id}',
+        'post_types' => [ '${4:post}' ],
+        'fields'     => [
+            [
+                'id'   => '${5:text_field}',
+                'name' => '${6:Text Field}',
+                'type' => 'text',
+            ],
+            [
+                'id'   => '${7:textarea_field}',
+                'name' => '${8:Textarea Field}',
+                'type' => 'textarea',
+                'rows' => 4,
+            ],
+            [
+                'id'   => '${9:image_field}',
+                'name' => '${10:Image}',
+                'type' => 'image_advanced',
+            ],
+        ],
+    ];
+    return \$meta_boxes;
+}
+```
+
+#### Get a single field value
+
+```
+Name:     Meta Box get field value
+Prefix:   mbget
+Language: PHP
+Tags:     metabox, custom-fields
+Body:
+\$${1:value} = rwmb_meta( '${2:field_id}' );
 ```
 
 ---
