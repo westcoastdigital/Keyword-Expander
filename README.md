@@ -306,26 +306,32 @@ The export is plain JSON and easy to read or edit by hand:
 
 The `tags` field is omitted for snippets that have no tags. Tags are restored automatically on import.
 
-### Example files
+### Import Examples
 
-The `examples/` folder in this repository contains ready-to-import snippet packs covering every example in this README. Click **↑ Import** and select any file to load that group instantly — no manual typing required.
+The `examples/` folder in this repository contains ready-to-use snippet packs covering every example in this README. Click **Import Examples** in the editor header to open a searchable Quick Pick of all available snippets — every snippet is pre-selected by default. Uncheck any you don't want, then press **Enter** to import the rest. The list refreshes automatically.
+
+You can filter the Quick Pick by prefix, name, or description as you type. Snippets are grouped by file so you can identify sets at a glance.
 
 | File | Snippets | What's inside |
 |---|---|---|
-| `plugin-scaffolding.json` | 5 | Theme header, plugin header, singleton class, `abspath` guard, plugin constants |
-| `hooks-filters.json` | 4 | `add_action`, `add_filter`, class-method variants, standalone filter callback |
-| `enqueue.json` | 2 | Script with `wp_localize_script`, stylesheet |
+| `acf.json` | 8 | `get_field`, text, image, repeater, flexible content, options, link, field group registration |
+| `admin-ui.json` | 2 | Admin menu page, Settings API field |
 | `ajax.json` | 2 | PHP AJAX handler (front + admin), `fetch()` JS call |
+| `custom-post-types.json` | 2 | `register_post_type`, `register_taxonomy` |
+| `enqueue.json` | 2 | Script with `wp_localize_script`, stylesheet |
+| `hooks-filters.json` | 4 | `add_action`, `add_filter`, class-method variants, standalone filter callback |
+| `meta-box-get-field-value.json` | 1 | Get a single field value with `rwmb_meta()` |
+| `meta-box-register-multiple-fields.json` | 1 | Register a Meta Box with text, textarea, and image fields |
+| `plugin-scaffolding.json` | 5 | Theme header, plugin header, singleton class, `abspath` guard, plugin constants |
+| `theme.json` | 3 | Theme setup, register sidebar, `WP_Query` loop |
+| `woocommerce.json` | 4 | Product price, shop columns, custom checkout field, save order meta |
+| `wordpress-action-hook.json` | 1 | Action hook with `function_exists` guard |
 | `wordpress-custom-post-type.json` | 1 | Full CPT registration with labels, supports, rewrite, menu icon |
 | `wordpress-custom-taxonomy.json` | 1 | Reusable CPT helper function with `wp_parse_args` pattern |
-| `admin-ui.json` | 2 | Admin menu page, Settings API field |
-| `acf.json` | 8 | `get_field`, text, image, repeater, flexible content, options, link, field group registration |
-| `meta-box-register-multiple-fields.json` | 1 | Register a Meta Box with text, textarea, and image fields |
-| `meta-box-get-field-value.json` | 1 | Get a single field value with `rwmb_meta()` |
-| `woocommerce.json` | 4 | Product price, shop columns, custom checkout field, save order meta |
-| `theme.json` | 3 | Theme setup, register sidebar, `WP_Query` loop |
 
-You can import as many packs as you like — they merge, so importing a second pack won't remove snippets from the first. Any snippet whose name and language file match an existing one will overwrite it.
+You can import as many packs as you like — they merge, so running Import Examples again won't remove snippets already in your library. Any snippet whose name and language file match an existing one will overwrite it.
+
+To add your own example packs, drop any Keyword Expander export file (`.json`) into the `examples/` folder. It will appear in the Quick Pick automatically next time you click **✷ Import Examples** — no code changes needed.
 
 ### Common workflows
 

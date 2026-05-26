@@ -37,6 +37,64 @@ const FILE_TO_LANG = {};
 LANGUAGES.forEach(l => { FILE_TO_LANG[l.file] = l; });
 
 // ───────────────────────────────────────────────────────────────────────────
+// Example snippets — loaded at runtime from the examples/ folder.
+// Each file is a JSON array of { id, category, file, name, prefix,
+// description, body } objects.  Files are read in alphabetical order so
+// the category display order is predictable.
+// ───────────────────────────────────────────────────────────────────────────
+
+function loadExampleSnippets() {
+    const exDir = path.join(__dirname, 'examples');
+    if (!fs.existsSync(exDir)) return [];
+    const all = [];
+    try {
+        const files = fs.readdirSync(exDir)
+            .filter(f => f.endsWith('.json'))
+            .sort();
+        for (const file of files) {
+            try {
+                const data = JSON.parse(fs.readFileSync(path.join(exDir, file), 'utf8'));
+
+                // ── Keyword Expander export format ────────────────────────
+                // { keywordExpander: true, snippets: [...] }
+                if (data && data.keywordExpander && Array.isArray(data.snippets)) {
+                    const category = file
+                        .replace(/\.json$/, '')
+                        .replace(/[-_]/g, ' ')
+                        .replace(/\b\w/g, c => c.toUpperCase())
+                        .replace(/\bAcf\b/g,        'ACF')
+                        .replace(/\bAjax\b/g,        'AJAX')
+                        .replace(/\bUi\b/g,          'UI')
+                        .replace(/\bCpt\b/g,         'CPT')
+                        .replace(/\bWoocommerce\b/g, 'WooCommerce')
+                        .replace(/\bWordpress\b/g,   'WordPress')
+                        .replace(/\bPhp\b/g,         'PHP');
+                    for (const s of data.snippets) {
+                        if (!s.file || !s.name || !s.prefix) continue;
+                        all.push({
+                            id:          file + '::' + s.name,
+                            category,
+                            file:        s.file,
+                            name:        s.name,
+                            prefix:      Array.isArray(s.prefix) ? s.prefix.join(', ') : String(s.prefix),
+                            description: s.description || '',
+                            body:        Array.isArray(s.body)   ? s.body.join('\n')   : String(s.body   || ''),
+                            tags:        Array.isArray(s.tags)   ? s.tags              : [],
+                        });
+                    }
+
+                // ── Plain array format ────────────────────────────────────
+                // [ { id, category, file, name, prefix, body, ... }, ... ]
+                } else if (Array.isArray(data)) {
+                    all.push(...data);
+                }
+            } catch (_) {}
+        }
+    } catch (_) {}
+    return all;
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // Snippets directory (handles Code vs Code - Insiders, all platforms)
 // ───────────────────────────────────────────────────────────────────────────
 
@@ -627,6 +685,68 @@ function openEditor() {
                 }
                 break;
             }
+            case 'importExamples': {
+                // Group examples by category for separator display
+                const exGroups = {};
+                const exOrder  = [];
+                for (const ex of loadExampleSnippets()) {
+                    if (!exGroups[ex.category]) { exGroups[ex.category] = []; exOrder.push(ex.category); }
+                    exGroups[ex.category].push(ex);
+                }
+
+                const qpItems = [];
+                for (const cat of exOrder) {
+                    qpItems.push({ label: cat, kind: vscode.QuickPickItemKind.Separator });
+                    for (const ex of exGroups[cat]) {
+                        qpItems.push({
+                            label:       ex.prefix,
+                            description: ex.name,
+                            detail:      ex.description || '',
+                            picked:      true,
+                            _ex:         ex,
+                        });
+                    }
+                }
+
+                const picked = await vscode.window.showQuickPick(qpItems, {
+                    canPickMany:       true,
+                    title:             '★  Import Example Snippets',
+                    placeHolder:       'Select snippets to import — all pre-selected, uncheck to skip',
+                    matchOnDescription: true,
+                    matchOnDetail:      true,
+                });
+
+                if (!picked || !picked.length) break;
+
+                let count = 0;
+                const exTags = readTags();
+                for (const item of picked) {
+                    if (!item._ex) continue;
+                    const s        = item._ex;
+                    const filePath = path.join(dir, s.file);
+                    const target   = readSnippetFile(filePath);
+                    const entry    = { prefix: s.prefix };
+                    entry.body     = s.body.split('\n');
+                    if (s.description) entry.description = s.description;
+                    if (s.scope && s.file.endsWith('.code-snippets')) entry.scope = s.scope;
+                    target[s.name] = entry;
+                    writeSnippetFile(filePath, target);
+                    if (Array.isArray(s.tags) && s.tags.length) {
+                        exTags[s.file + '::' + s.name] = s.tags;
+                    }
+                    count++;
+                }
+                writeTags(exTags);
+
+                vscode.window.showInformationMessage(
+                    'Keyword Expander: Imported ' + count + ' example snippet(s).'
+                );
+                push();
+                if (_panel) {
+                    _panel.webview.postMessage({ type: 'importDone', count });
+                }
+                break;
+            }
         }
     });
 
@@ -1209,6 +1329,7 @@ textarea{
   <div class="header-title">&#9000;&nbsp; Keyword Expander</div>
   <div class="header-actions">
     <button class="btn btn-secondary" onclick="importSnippets()">&#8657;&nbsp; Import</button>
+    <button class="btn btn-secondary" onclick="openExamplePicker()">&#978;&nbsp; Import Examples</button>
     <button class="btn btn-secondary" onclick="exportAll()">&#8659;&nbsp; Export All</button>
     <button class="btn btn-secondary" onclick="refresh()">&#8635; Refresh</button>
     <button class="btn btn-secondary" onclick="newSnippet()">&#65291; New Snippet</button>
@@ -1753,6 +1874,11 @@ function exportCurrentSnippet() {
 /* ── Import snippets from file ───────────────────────────────────────── */
 function importSnippets() {
   vscode.postMessage({ type: 'import' });
+}
+
+/* ── Open example picker (native VS Code QuickPick) ──────────────────── */
+function openExamplePicker() {
+  vscode.postMessage({ type: 'importExamples' });
 }
 
 /* ── Textarea Tab key ────────────────────────────────────────────────── */
