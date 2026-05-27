@@ -30,6 +30,10 @@
       {
         "command": "keywordExpander.addFromSelection",
         "title": "Keyword Expander: Add Selection as Snippet"
+      },
+      {
+        "command": "keywordExpander.update",
+        "title": "Keyword Expander: Check for Updates"
       }
     ],
     "menus": {

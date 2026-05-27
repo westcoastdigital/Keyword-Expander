@@ -1,9 +1,10 @@
 'use strict';
 
-const vscode = require('vscode');
-const fs     = require('fs');
-const path   = require('path');
-const os     = require('os');
+const vscode      = require('vscode');
+const fs          = require('fs');
+const path        = require('path');
+const os          = require('os');
+const { exec }    = require('child_process');
 
 // ───────────────────────────────────────────────────────────────────────────
 // Language / filename map  (used by extension and sent to webview)
@@ -261,6 +262,52 @@ function loadAllSnippets() {
 
 let _panel = null;
 
+// ───────────────────────────────────────────────────────────────────────────
+// Auto-updater  (git clone installs only)
+// ───────────────────────────────────────────────────────────────────────────
+
+function checkForUpdates(silent = false) {
+    const gitDir = path.join(__dirname, '.git');
+    if (!fs.existsSync(gitDir)) {
+        if (!silent) {
+            vscode.window.showInformationMessage(
+                'Auto-update requires the git clone install.',
+                'View on GitHub'
+            ).then(a => {
+                if (a === 'View on GitHub') {
+                    vscode.env.openExternal(vscode.Uri.parse(
+                        'https://github.com/westcoastdigital/Keyword-Expander'
+                    ));
+                }
+            });
+        }
+        return;
+    }
+
+    exec('git pull', { cwd: __dirname }, (err, stdout) => {
+        if (err) return; // silent on network / git errors
+
+        const upToDate = stdout.includes('Already up to date') ||
+                         stdout.includes('Already up-to-date');
+        if (upToDate) {
+            if (!silent) {
+                vscode.window.showInformationMessage('Keyword Expander: already up to date.');
+            }
+            return;
+        }
+
+        // Something was pulled — offer a reload
+        vscode.window.showInformationMessage(
+            'Keyword Expander has been updated.',
+            'Reload Now'
+        ).then(a => {
+            if (a === 'Reload Now') {
+                vscode.commands.executeCommand('workbench.action.reloadWindow');
+            }
+        });
+    });
+}
+
 function activate(context) {
 
     // ── Completion provider ────────────────────────────────────────────────
@@ -475,6 +522,19 @@ function activate(context) {
     statusBar.command = 'keywordExpander.openEditor';
     statusBar.show();
     context.subscriptions.push(statusBar);
+
+    // ── Auto-update ───────────────────────────────────────────────────────
+    // Silent background check once per 24 hours on startup.
+    const lastCheck = context.globalState.get('lastUpdateCheck', 0);
+    if (Date.now() - lastCheck > 86_400_000) {
+        context.globalState.update('lastUpdateCheck', Date.now());
+        checkForUpdates(true);
+    }
+
+    // Manual trigger via Command Palette.
+    context.subscriptions.push(
+        vscode.commands.registerCommand('keywordExpander.update', () => checkForUpdates(false))
+    );
 }
 
 function deactivate() {}
@@ -1329,7 +1389,7 @@ textarea{
   <div class="header-title">&#9000;&nbsp; Keyword Expander</div>
   <div class="header-actions">
     <button class="btn btn-secondary" onclick="importSnippets()">&#8657;&nbsp; Import</button>
-    <button class="btn btn-secondary" onclick="openExamplePicker()">&#978;&nbsp; Import Examples</button>
+    <button class="btn btn-secondary" onclick="openExamplePicker()">&#9733;&nbsp; Examples</button>
     <button class="btn btn-secondary" onclick="exportAll()">&#8659;&nbsp; Export All</button>
     <button class="btn btn-secondary" onclick="refresh()">&#8635; Refresh</button>
     <button class="btn btn-secondary" onclick="newSnippet()">&#65291; New Snippet</button>
