@@ -38,16 +38,11 @@ code --install-extension keyword-expander-1.0.0.vsix
 
 ### Updating
 
-**Option A** — Pull the latest changes and reload:
+**Option A (git clone)** — updates happen automatically. Once per day when VS Code starts, the extension silently pulls the latest changes from GitHub in the background. If anything was updated you'll see a single **Reload Now** notification — click it and you're on the latest version. If you're already up to date, nothing appears.
 
-```bash
-cd ~/.vscode/extensions/simpliweb.keyword-expander
-git pull
-```
+You can also trigger a manual check any time via `Ctrl+Shift+P` → **Keyword Expander: Check for Updates**.
 
-Then run *Developer: Reload Window* in VS Code.
-
-**Option B** — Rebuild and reinstall the vsix:
+**Option B (vsix)** — auto-update doesn't apply to vsix installs. Rebuild and reinstall when you want to update:
 
 ```bash
 cd keyword-expander
@@ -70,6 +65,16 @@ There are four ways to open the snippet editor — no Command Palette required:
 | **Editor title bar** | Click the **⌨** icon in the top-right corner of any open file |
 | **Extensions panel** | Find *Keyword Expander* in your installed extensions, click the **⚙** gear icon, choose *Keyword Expander: Open Snippet Editor* |
 | **Command Palette** | `Ctrl+Shift+P` → `Keyword Expander: Open Snippet Editor` |
+
+All available commands:
+
+| Command | What it does |
+|---|---|
+| `Keyword Expander: Open Snippet Editor` | Opens the visual editor |
+| `Keyword Expander: Browse & Insert Snippet` | Quick Pick to search and insert |
+| `Keyword Expander: Add Selection as Snippet` | Creates a snippet from selected code |
+| `Keyword Expander: Expand Keyword at Cursor` | Expands the keyword at the cursor (Tab alternative) |
+| `Keyword Expander: Check for Updates` | Manually pulls the latest version from GitHub |
 
 ---
 
@@ -308,7 +313,7 @@ The `tags` field is omitted for snippets that have no tags. Tags are restored au
 
 ### Import Examples
 
-The `examples/` folder in this repository contains ready-to-use snippet packs covering every example in this README. Click **Import Examples** in the editor header to open a searchable Quick Pick of all available snippets — every snippet is pre-selected by default. Uncheck any you don't want, then press **Enter** to import the rest. The list refreshes automatically.
+The `examples/` folder in this repository contains ready-to-use snippet packs covering every example in this README. Click **✷ Import Examples** in the editor header to open a searchable Quick Pick of all available snippets — every snippet is pre-selected by default. Uncheck any you don't want, then press **Enter** to import the rest. The list refreshes automatically.
 
 You can filter the Quick Pick by prefix, name, or description as you type. Snippets are grouped by file so you can identify sets at a glance.
 
