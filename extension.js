@@ -195,6 +195,40 @@ function parseTags(raw) {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+// Meta sidecar  (keyword-expander-meta.json alongside snippet files)
+// Keys are "file::snippetName", values are { uses, lastUsed, favourite }.
+// Tracks usage count, last-used timestamp, and favourite flag.
+// ───────────────────────────────────────────────────────────────────────────
+
+function getMetaFilePath() {
+    return path.join(getSnippetsDir(), 'keyword-expander-meta.json');
+}
+
+function readMeta() {
+    try {
+        const filePath = getMetaFilePath();
+        if (!fs.existsSync(filePath)) return {};
+        return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    } catch (_) { return {}; }
+}
+
+function writeMeta(meta) {
+    const filePath = getMetaFilePath();
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(filePath, JSON.stringify(meta, null, '\t'), 'utf8');
+}
+
+function trackUsage(id) {
+    const meta   = readMeta();
+    const entry  = meta[id] || { uses: 0, lastUsed: 0, favourite: false };
+    entry.uses   = (entry.uses || 0) + 1;
+    entry.lastUsed = Date.now();
+    meta[id]     = entry;
+    writeMeta(meta);
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // Load all snippets from the user snippets directory → flat array
 // ───────────────────────────────────────────────────────────────────────────
 
@@ -208,11 +242,13 @@ function loadAllSnippets() {
     try {
         files = fs.readdirSync(dir).filter(f =>
             (f.endsWith('.json') || f.endsWith('.code-snippets')) &&
-            f !== 'keyword-expander-tags.json'   // skip our own sidecar
+            f !== 'keyword-expander-tags.json' &&
+            f !== 'keyword-expander-meta.json'   // skip our own sidecars
         );
     } catch (_) { return list; }
 
     const tags = readTags();
+    const meta = readMeta();
 
     for (const file of files) {
         const data = readSnippetFile(path.join(dir, file));
@@ -241,6 +277,9 @@ function loadAllSnippets() {
                 description: s.description || '',
                 scope:       s.scope       || '',
                 tags:        tags[id]      || [],
+                uses:        meta[id]?.uses      || 0,
+                lastUsed:    meta[id]?.lastUsed  || 0,
+                favourite:   meta[id]?.favourite || false,
             });
         }
     }
@@ -385,6 +424,7 @@ function activate(context) {
                     const start = new vscode.Position(pos.line, pos.character - typed.length);
                     await editor.edit(eb => eb.delete(new vscode.Range(start, pos)));
                     await editor.insertSnippet(new vscode.SnippetString(s.body));
+                    trackUsage(s.id);
                     return;
                 }
             }
@@ -495,6 +535,8 @@ function activate(context) {
                 const picked = qp.selectedItems[0];
                 qp.hide();
                 if (!picked || !picked.snippet) return;
+
+                trackUsage(picked.snippet.id);
 
                 const editor = vscode.window.activeTextEditor;
                 if (editor) {
@@ -805,6 +847,20 @@ function openEditor() {
                 if (_panel) {
                     _panel.webview.postMessage({ type: 'importDone', count });
                 }
+                break;
+            }
+            case 'toggleFavourite': {
+                const m    = readMeta();
+                const entry = m[msg.id] || { uses: 0, lastUsed: 0, favourite: false };
+                entry.favourite = !entry.favourite;
+                m[msg.id] = entry;
+                writeMeta(m);
+                push();
+                break;
+            }
+
+            case 'trackUsage': {
+                trackUsage(msg.id);
                 break;
             }
         }
@@ -1380,6 +1436,29 @@ textarea{
 /* ── Tags input (form) ────────────────────────────────────────── */
 .tags-hint{font-size:10px;opacity:0.45;margin-top:2px;}
 .btn-auto{font-size:10px;padding:2px 8px;margin-left:auto;flex-shrink:0;}
+
+/* ── Sort select ──────────────────────────────────────────────── */
+.sort-row{display:flex;align-items:center;gap:5px;}
+.sort-row label{font-size:10px;opacity:0.5;white-space:nowrap;text-transform:none;letter-spacing:0;font-weight:400;}
+.sort-row select{flex:1;}
+
+/* ── Favourite button ─────────────────────────────────────────── */
+.fav-btn{
+  background:none;border:none;cursor:pointer;
+  padding:2px 4px;font-size:13px;line-height:1;
+  opacity:0.25;color:inherit;border-radius:3px;flex-shrink:0;
+}
+.fav-btn:hover{opacity:0.8;background:var(--vscode-toolbar-hoverBackground);}
+.fav-btn.is-fav{opacity:1;color:#e8b84b;}
+.snippet-item:not(:hover):not(.active) .fav-btn:not(.is-fav){display:none;}
+
+/* ── Uses badge ───────────────────────────────────────────────── */
+.uses-badge{
+  font-size:9px;opacity:0.35;white-space:nowrap;flex-shrink:0;
+  font-family:var(--vscode-editor-font-family,monospace);
+}
+.snippet-item:hover .uses-badge,
+.snippet-item.active .uses-badge{opacity:0.6;}
 </style>
 </head>
 <body>
@@ -1406,6 +1485,15 @@ textarea{
       <select id="langFilter" onchange="renderList()">
         <option value="">All Languages</option>
       </select>
+      <div class="sort-row">
+        <label for="sortSelect">Sort</label>
+        <select id="sortSelect" onchange="renderList()">
+          <option value="az">Name A–Z</option>
+          <option value="fav">Favourites First</option>
+          <option value="used">Most Used</option>
+          <option value="recent">Recently Used</option>
+        </select>
+      </div>
     </div>
     <button class="add-new-btn" onclick="newSnippet()">&#65291;&nbsp; Add New Snippet</button>
     <div class="snippet-list" id="snippetList">
@@ -1603,6 +1691,7 @@ function buildFileSelect() {
 function renderList() {
   var raw        = document.getElementById('search').value;
   var langFilter = document.getElementById('langFilter').value;
+  var sortMode   = document.getElementById('sortSelect').value;
   var list       = document.getElementById('snippetList');
 
   // Extract tag: filter — anything after "tag:" up to the next space
@@ -1635,48 +1724,96 @@ function renderList() {
     return;
   }
 
-  // Group by file
-  var groups = {};
-  var order  = [];
-  filtered.forEach(function(s) {
-    if (!groups[s.file]) { groups[s.file] = []; order.push(s.file); }
-    groups[s.file].push(s);
-  });
-
-  var html = '';
-  order.forEach(function(file) {
-    var grp = groups[file];
-    var langEntry = null;
-    state.languages.forEach(function(l) { if (l.file === file) langEntry = l; });
-    var label = langEntry ? langEntry.label : file.replace(/\.(json|code-snippets)$/, '');
-    html += '<div class="list-section">' + esc(label) + '</div>';
-    grp.forEach(function(s) {
-      var active   = s.id === state.selectedId ? ' active' : '';
-      var tagPills = '';
-      if (s.tags && s.tags.length) {
-        // Show up to 3 pills; overflow is hidden by CSS
-        var show = s.tags.slice(0, 3);
-        tagPills = '<div class="item-tags">' +
-          show.map(function(t) { return '<span class="tag-pill" title="' + esc(t) + '">' + esc(t) + '</span>'; }).join('') +
-          '</div>';
-      }
-      html += '<div class="snippet-item' + active + '" data-id="' + esc(s.id) + '">' +
-        '<span class="kw-badge" title="' + esc(s.prefix) + '">' + esc(s.prefix) + '</span>' +
-        '<span class="item-name">' + esc(s.name) + '</span>' +
-        tagPills +
-        '<div class="item-actions">' +
-        '<button class="icon-btn exp-btn" title="Export snippet" data-id="' + esc(s.id) + '">&#8659;</button>' +
-        '<button class="icon-btn del-btn" title="Delete" data-id="' + esc(s.id) + '">&#128465;</button>' +
-        '</div>' +
-        '</div>';
+  // ── Sort ────────────────────────────────────────────────────────────
+  if (sortMode === 'used') {
+    filtered.sort(function(a, b) { return (b.uses || 0) - (a.uses || 0); });
+  } else if (sortMode === 'recent') {
+    filtered.sort(function(a, b) { return (b.lastUsed || 0) - (a.lastUsed || 0); });
+  } else if (sortMode === 'fav') {
+    filtered.sort(function(a, b) {
+      if (a.favourite && !b.favourite) return -1;
+      if (!a.favourite && b.favourite) return  1;
+      return a.name.localeCompare(b.name);
     });
-  });
+  }
+  // 'az' keeps the existing extension-side alpha sort
+
+  // ── Render ──────────────────────────────────────────────────────────
+  // Flat list for sorted modes, grouped by language for A–Z
+  var html = '';
+
+  if (sortMode !== 'az') {
+    // Flat — no language section headers, just items
+    filtered.forEach(function(s) {
+      html += renderItem(s, sortMode);
+    });
+  } else {
+    // Grouped by file
+    var groups = {};
+    var order  = [];
+    filtered.forEach(function(s) {
+      if (!groups[s.file]) { groups[s.file] = []; order.push(s.file); }
+      groups[s.file].push(s);
+    });
+    order.forEach(function(file) {
+      var grp = groups[file];
+      var langEntry = null;
+      state.languages.forEach(function(l) { if (l.file === file) langEntry = l; });
+      var label = langEntry ? langEntry.label : file.replace(/\.(json|code-snippets)$/, '');
+      html += '<div class="list-section">' + esc(label) + '</div>';
+      grp.forEach(function(s) { html += renderItem(s, sortMode); });
+    });
+  }
 
   list.innerHTML = html;
 }
 
+/* ── Render a single sidebar item ───────────────────────────────────── */
+function renderItem(s, sortMode) {
+  var active   = s.id === state.selectedId ? ' active' : '';
+  var favClass = s.favourite ? ' is-fav' : '';
+
+  var tagPills = '';
+  if (s.tags && s.tags.length) {
+    var show = s.tags.slice(0, 3);
+    tagPills = '<div class="item-tags">' +
+      show.map(function(t) { return '<span class="tag-pill" title="' + esc(t) + '">' + esc(t) + '</span>'; }).join('') +
+      '</div>';
+  }
+
+  var usesBadge = '';
+  if (sortMode === 'used' && s.uses > 0) {
+    usesBadge = '<span class="uses-badge">' + s.uses + 'x</span>';
+  }
+
+  return '<div class="snippet-item' + active + '" data-id="' + esc(s.id) + '">' +
+    '<button class="fav-btn' + favClass + '" title="' + (s.favourite ? 'Remove favourite' : 'Add to favourites') + '" data-id="' + esc(s.id) + '">&#9733;</button>' +
+    '<span class="kw-badge" title="' + esc(s.prefix) + '">' + esc(s.prefix) + '</span>' +
+    '<span class="item-name">' + esc(s.name) + '</span>' +
+    tagPills +
+    usesBadge +
+    '<div class="item-actions">' +
+    '<button class="icon-btn exp-btn" title="Export snippet" data-id="' + esc(s.id) + '">&#8659;</button>' +
+    '<button class="icon-btn del-btn" title="Delete" data-id="' + esc(s.id) + '">&#128465;</button>' +
+    '</div>' +
+    '</div>';
+}
+
 /* ── List click delegation (avoids inline-onclick quote-escaping bugs) ──── */
 document.getElementById('snippetList').addEventListener('click', function(e) {
+  var favBtn = e.target.closest('.fav-btn');
+  if (favBtn) {
+    e.stopPropagation();
+    var id = favBtn.dataset.id;
+    // Optimistic toggle in local state
+    var s = state.snippets.find(function(x) { return x.id === id; });
+    if (s) {
+      s.favourite = !s.favourite;
+      renderList();
+    }
+    vscode.postMessage({ type: 'toggleFavourite', id: id });
+    return;
+  }
   var expBtn = e.target.closest('.exp-btn');
   if (expBtn) {
     e.stopPropagation();
@@ -1846,6 +1983,12 @@ function previewSnippet() {
   var body = document.getElementById('bodyInput').value;
   if (!body.trim()) { setStatus('Nothing to preview.', true); return; }
   vscode.postMessage({ type: 'preview', body: body });
+  // Track usage if editing an existing snippet
+  if (state.originalFile && state.originalName) {
+    vscode.postMessage({ type: 'trackUsage', id: state.originalFile + '::' + state.originalName });
+    var s = state.snippets.find(function(x) { return x.id === state.originalFile + '::' + state.originalName; });
+    if (s) { s.uses = (s.uses || 0) + 1; s.lastUsed = Date.now(); }
+  }
 }
 
 /* ── File select change ──────────────────────────────────────────────── */
