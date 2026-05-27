@@ -2,11 +2,34 @@
 
 A VS Code extension with a visual editor for creating and managing keyword shortcuts that expand into full code snippets. Reads and writes to your real VS Code snippet files — so existing snippets load automatically, new ones appear in IntelliSense straight away, and everything syncs via VS Code Settings Sync.
 
+Built for individual developers and agencies alike. Connect a GitHub repo, Gist, or local folder as an external source and your whole team shares the same snippet library — new snippets appear automatically, no manual distribution required.
+
 ![Keyword Expander — snippet editor showing the WordPress Theme Header snippet](screenshot.jpg)
 
 ---
 
-## Installation
+## For agencies & teams
+
+Keyword Expander is designed to scale from a single developer to an entire agency. Every developer maintains their own personal snippet library as usual, but you can layer in one or more **external sources** — a shared GitHub repo, a Gist, or a folder on a local server — that all team members read from simultaneously.
+
+**How a typical agency setup works:**
+
+1. A lead developer maintains a shared repo (e.g. `github.com/agency/snippets`) containing approved, production-ready patterns — WooCommerce checkout flows, ACF field group registrations, plugin scaffolding, client-specific hooks.
+2. Each team member adds that repo as an external source in their Keyword Expander. The snippets appear instantly in their sidebar and IntelliSense, clearly labelled with the source name.
+3. When the lead pushes a new snippet to the repo, everyone's editor picks it up automatically within 10 minutes — no one needs to import a file, pull a repo, or do anything manually.
+4. Developers can hide external snippets they don't personally use, without affecting anyone else. They can also save a local copy of any external snippet to customise it for their own workflow.
+5. Personal snippets stay entirely separate — local snippets are never pushed to the shared source.
+
+**What this solves in practice:**
+
+- New starters get the agency's full snippet library the moment they add the source — no onboarding doc to follow, no files to import.
+- When WordPress or WooCommerce APIs change, the lead updates one snippet in the repo and the fix reaches every developer's editor within minutes.
+- Every project uses the same patterns for hooks, CPTs, and checkout fields — consistency without policing.
+- Freelancers contracting for multiple agencies can have each agency's source alongside their own library, all in one sidebar.
+
+See the [External Sources](#external-sources) section for setup instructions.
+
+---
 
 **Option A** (clone into extensions) supports `git pull` updates and is recommended if you're developing or tweaking the extension. **Option B** (build a vsix) is better for distributing to others or installing on machines without Git. Don't use both at the same time — VS Code will see duplicate extensions.
 
@@ -235,6 +258,25 @@ The language dropdown applies on top of both — so you can filter to PHP WooCom
 
 ---
 
+## Sorting the sidebar
+
+Use the **Sort** dropdown beneath the language filter to change how snippets are ordered in the sidebar.
+
+| Sort option | Order |
+|---|---|
+| **Name A–Z** | Alphabetical within language groups (default) |
+| **Favourites First** | Starred snippets at the top, then alphabetical |
+| **Most Used** | Snippets you've inserted most often first — shows a small usage count badge next to each item |
+| **Recently Used** | Last-inserted snippet at the top — useful for getting back to whatever you were just working on |
+
+**Favouriting a snippet** — hover any snippet in the sidebar and click the **★** icon. It turns gold and the snippet stays pinned to the top when sorting by Favourites. Click again to unfavourite.
+
+Usage and recency data are tracked automatically whenever you insert a snippet — via IntelliSense, Browse & Insert, the Tab expander, or Preview in Editor. The counts persist across sessions.
+
+The A–Z sort groups snippets by language file with section headers. The other three sorts show a flat list across all languages, since grouping by language doesn't make sense when ordering by a different dimension.
+
+---
+
 ## Expanding snippets
 
 ### IntelliSense (primary)
@@ -269,7 +311,104 @@ Once on, any snippet you create or edit is synced to all your machines automatic
 
 ---
 
-## Export & Import
+## External Sources
+
+External sources let you pull snippets from a remote or shared location and browse them alongside your local library — without importing them permanently. They appear in your sidebar with a coloured source label so you always know where a snippet came from.
+
+### Adding a source
+
+Click **☁ Sources** in the editor header. If you have no sources yet you'll be prompted to add one straight away. Otherwise select **Add New Source** from the list.
+
+The three-step flow asks for:
+
+1. **URL or path** — paste the GitHub repo URL, Gist URL, local folder path, or HTTP URL (see formats below)
+2. **Display name** — how the source appears in your sidebar (e.g. `Agency Snippets`, `Client: Acme`)
+3. **GitHub token** — only shown for GitHub sources; required for private repos/gists, leave blank for public
+
+The source is saved and fetched immediately. New snippets appear in your sidebar within a few seconds.
+
+### Supported source types
+
+| Type | URL format | Notes |
+|---|---|---|
+| **GitHub repo** | `https://github.com/user/repo` | All `.json` files in the repo are read. Use a branch other than `main` by editing the source config directly. |
+| **GitHub Gist** | `https://gist.github.com/user/abc123` | All `.json` files in the Gist are read. Supports multi-file Gists. |
+| **Local folder** | `/Users/jon/snippets` or `~/snippets` | Every `.json` file in the folder is read. Useful for a shared network drive or local dev server. |
+| **HTTP folder** | `https://snippets.agency.com/shared/` | Requires an `index.json` in the folder listing the filenames (see below). |
+| **HTTP file** | `https://snippets.agency.com/shared/wordpress.json` | Single file, fetched directly. |
+
+### File formats
+
+External sources read all three formats automatically — you don't need to convert anything:
+
+- **Keyword Expander export** — any `.json` file exported from this extension (`keywordExpander: true`)
+- **Plain array** — `[ { "name": "...", "prefix": "...", "body": "...", "file": "php.json" }, ... ]`
+- **Native VS Code snippets** — the standard `{ "Snippet Name": { "prefix": "...", "body": [...] } }` format used by VS Code's own snippet files
+
+This means you can point Keyword Expander at any existing snippet repo — yours, a colleague's, or a community library — and it will read it without modification.
+
+### HTTP folder index
+
+For HTTP folder sources, create an `index.json` at the folder root listing the filenames to load:
+
+```json
+["wordpress.json", "woocommerce.json", "acf.json"]
+```
+
+Or as an object:
+
+```json
+{ "files": ["wordpress.json", "woocommerce.json"] }
+```
+
+Files not listed in the index are ignored.
+
+### Auto-refresh
+
+External sources refresh automatically every 10 minutes while the editor panel is open. When a team member pushes a new snippet to the shared repo, everyone's sidebar updates within 10 minutes with no action required.
+
+To refresh immediately, click **↺ Refresh** in the header.
+
+### Managing sources
+
+Click **☁ Sources** to open the source manager. From here you can:
+
+- **Toggle a source on or off** — select it from the list to flip its enabled state. Disabled sources are skipped on refresh but their config is kept.
+- **Add a new source** — as above.
+- **Remove a source** — select Remove a Source and choose which one to delete.
+- **Show hidden snippets** — if you've hidden individual snippets from a source, this option appears showing how many are hidden. Selecting it restores them all.
+
+### External snippets in the sidebar
+
+External snippets show a small coloured **source name badge** in the sidebar so you can tell at a glance where they come from. They're fully searchable and sortable alongside your local snippets.
+
+Hovering an external snippet shows a **×** button instead of the usual delete button. Clicking it **hides** that snippet — it won't reappear on refresh or auto-poll. Hidden snippets are remembered across sessions. To bring them back, use the **Show hidden snippets** option in Sources.
+
+### Opening an external snippet
+
+Clicking an external snippet opens it in the form in read-only mode. You can see the full body, copy the content, and insert it into the editor via **▶ Preview in Editor**. The form shows a banner identifying the source.
+
+To keep a personalised copy, click **Save as Local Copy** in the banner. The form switches to editable mode — adjust the name, keyword, or body, then save. The local copy is independent of the source; changes to the source won't overwrite it.
+
+### Setting up a shared agency repo
+
+The recommended structure for a shared GitHub repo is one file per category, using the Keyword Expander export format:
+
+```
+snippets/
+├── wordpress.json
+├── woocommerce.json
+├── acf.json
+├── hooks-filters.json
+├── plugin-scaffolding.json
+└── client-acme.json
+```
+
+Each file is a standard Keyword Expander export. Build the files by creating snippets locally and using **↓ Export** — either individually or in bulk. Commit the files to the repo. Point your team at `https://github.com/agency/snippets` as a source and they're done.
+
+When you add or update a snippet: edit it locally, export the relevant file, commit, push. Team members pick up the change within 10 minutes.
+
+---
 
 Keyword Expander can export your snippets to a portable JSON file — useful for backups, moving to a new machine, or sharing a snippet collection with your team.
 
@@ -342,11 +481,17 @@ To add your own example packs, drop any Keyword Expander export file (`.json`) i
 
 **Backing up your snippets** — Export All, then commit the file to a Git repo or drop it in cloud storage alongside your dotfiles.
 
-**Sharing with a teammate** — Export All (or pick individual snippets), send the file, they import it. Their existing snippets are not affected.
+**Sharing with a teammate (one-off)** — Export All (or pick individual snippets), send the file, they import it. Their existing snippets are not affected.
 
 **Moving to a new machine** — Export All on the old machine, install Keyword Expander on the new one, then Import the file. If you use VS Code Settings Sync the snippets will already be there, but export/import is a good manual fallback.
 
-**Building a team library** — Keep a shared `team-snippets.json` in your project or wiki repo. Anyone can import it to get the standard set of hooks, patterns, and boilerplate for the project.
+**Agency shared library** — Maintain a GitHub repo with your approved snippet files. Each developer adds the repo as a Source (see [External Sources](#external-sources)). New snippets reach everyone's editor automatically within 10 minutes of a push. No imports, no distribution, no version drift.
+
+**Onboarding a new developer** — They install the extension, add your agency's GitHub repo as a Source, and immediately have the full library available. One step, done.
+
+**Client-specific snippets** — Keep a separate file per client in your shared repo (e.g. `client-acme.json`). Developers working on that client see those snippets alongside the agency-wide ones with no special setup.
+
+**Freelancing across multiple agencies** — Add each agency's source separately. All sources appear in one sidebar, each labelled with the agency name. Hide sources from agencies you're not currently working with to keep the list clean.
 
 ---
 
@@ -1200,7 +1345,15 @@ Snippets are saved to your VS Code user snippets folder:
 
 Language-specific snippets are stored in files like `php.json` and `javascript.json`. Global snippets go in `global.code-snippets` and optionally use the **Scope** field to restrict which languages they appear in.
 
-Tags are stored separately in `keyword-expander-tags.json` in the same folder — a plain JSON file keyed by snippet identifier. This keeps the native snippet files 100% standard and compatible with VS Code's built-in snippet engine, IntelliSense, and any other tooling that reads those files. The tags file is included in VS Code Settings Sync alongside your other snippet files.
+Keyword Expander stores additional data in three sidecar files in the same folder:
+
+| File | What it stores |
+|---|---|
+| `keyword-expander-tags.json` | Tags for each snippet — kept separate so native snippet files stay 100% standard |
+| `keyword-expander-meta.json` | Usage counts, last-used timestamps, favourites, and hidden external snippets |
+| `keyword-expander-sources.json` | Your configured external sources (URLs, names, tokens, enabled state) |
+
+None of these files are ever read by VS Code's built-in snippet engine — your snippet files remain fully compatible with IntelliSense, the native snippet picker, and any other tooling. All three sidecar files are included in VS Code Settings Sync.
 
 Click **Open Snippets Folder** in the editor footer to open the directory directly.
 
