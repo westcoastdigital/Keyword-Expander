@@ -5,6 +5,8 @@ const fs          = require('fs');
 const path        = require('path');
 const os          = require('os');
 const { exec }    = require('child_process');
+const https       = require('https');
+const http        = require('http');
 
 // ───────────────────────────────────────────────────────────────────────────
 // Language / filename map  (used by extension and sent to webview)
@@ -220,12 +222,289 @@ function writeMeta(meta) {
 }
 
 function trackUsage(id) {
-    const meta   = readMeta();
-    const entry  = meta[id] || { uses: 0, lastUsed: 0, favourite: false };
-    entry.uses   = (entry.uses || 0) + 1;
+    const meta     = readMeta();
+    const entry    = meta[id] || { uses: 0, lastUsed: 0, favourite: false };
+    entry.uses     = (entry.uses || 0) + 1;
     entry.lastUsed = Date.now();
-    meta[id]     = entry;
+    meta[id]       = entry;
     writeMeta(meta);
+}
+
+// Dismissed external snippets — keyed by sourceUrl::file::name so they
+// survive source removal/re-add and remain stable across sessions.
+function getDismissed() {
+    return new Set(readMeta().__dismissed__ || []);
+}
+
+function addDismissed(key) {
+    const meta = readMeta();
+    const set  = new Set(meta.__dismissed__ || []);
+    set.add(key);
+    meta.__dismissed__ = Array.from(set);
+    writeMeta(meta);
+}
+
+function clearDismissed() {
+    const meta = readMeta();
+    delete meta.__dismissed__;
+    writeMeta(meta);
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// External sources sidecar  (keyword-expander-sources.json)
+// Each entry: { id, name, type, url, token, branch, enabled }
+// Types: github-repo | github-gist | local | http
+// ───────────────────────────────────────────────────────────────────────────
+
+function getSourcesFilePath() {
+    return path.join(getSnippetsDir(), 'keyword-expander-sources.json');
+}
+
+function readSources() {
+    try {
+        const fp = getSourcesFilePath();
+        if (!fs.existsSync(fp)) return [];
+        return JSON.parse(fs.readFileSync(fp, 'utf8'));
+    } catch (_) { return []; }
+}
+
+function writeSources(sources) {
+    const fp  = getSourcesFilePath();
+    const dir = path.dirname(fp);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(fp, JSON.stringify(sources, null, '\t'), 'utf8');
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// HTTP helper — follows redirects, returns { status, body }
+// ───────────────────────────────────────────────────────────────────────────
+
+function httpGet(url, headers = {}, redirects = 5) {
+    return new Promise((resolve, reject) => {
+        if (redirects === 0) { reject(new Error('Too many redirects')); return; }
+        const lib     = url.startsWith('https') ? https : http;
+        const options = { headers: { 'User-Agent': 'keyword-expander-vscode', ...headers } };
+        lib.get(url, options, res => {
+            if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+                httpGet(res.headers.location, headers, redirects - 1).then(resolve).catch(reject);
+                return;
+            }
+            let data = '';
+            res.on('data', chunk => { data += chunk; });
+            res.on('end', () => resolve({ status: res.statusCode, body: data }));
+        }).on('error', reject);
+    });
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Source type detection
+// ───────────────────────────────────────────────────────────────────────────
+
+function detectSourceType(url) {
+    if (!url) return null;
+    if (/^([/~]|[A-Za-z]:[/\\])/.test(url)) return 'local';
+    if (url.includes('gist.github.com'))      return 'github-gist';
+    if (url.includes('github.com'))           return 'github-repo';
+    if (/^https?:\/\//.test(url))             return 'http';
+    return null;
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Parse snippets from a JSON string fetched from an external source.
+// Handles: KE export format, plain array, and native VS Code snippet format.
+// ───────────────────────────────────────────────────────────────────────────
+
+function makeExternalSnippet(s, file, sourceName, sourceId, sourceUrl) {
+    const lang   = FILE_TO_LANG[file] || { label: file.replace(/\.(json|code-snippets)$/, '') };
+    const prefix = Array.isArray(s.prefix) ? s.prefix.join(', ') : String(s.prefix || '');
+    const body   = Array.isArray(s.body)   ? s.body.join('\n')   : String(s.body   || '');
+    return {
+        id:          '__ext__' + sourceId + '::' + file + '::' + s.name,
+        file,
+        langLabel:   lang.label,
+        name:        s.name,
+        prefix,
+        body,
+        description: s.description || '',
+        scope:       s.scope       || '',
+        tags:        Array.isArray(s.tags) ? s.tags : [],
+        uses:        0,
+        lastUsed:    0,
+        favourite:   false,
+        readonly:    true,
+        sourceName,
+        sourceId,
+        sourceUrl,
+        // Stable dismiss key — survives source re-add or rename
+        dismissKey:  (sourceUrl || sourceId) + '::' + file + '::' + s.name,
+    };
+}
+
+function parseSnippetsFromSource(text, filename, sourceName, sourceId, sourceUrl) {
+    let data;
+    try { data = JSON.parse(text); } catch (_) { return []; }
+
+    const file = filename || 'global.code-snippets';
+
+    // KE export format
+    if (data && data.keywordExpander && Array.isArray(data.snippets)) {
+        return data.snippets
+            .filter(s => s.name && s.prefix)
+            .map(s => makeExternalSnippet(s, s.file || file, sourceName, sourceId, sourceUrl));
+    }
+
+    // Plain array
+    if (Array.isArray(data)) {
+        return data
+            .filter(s => s && s.name && s.prefix)
+            .map(s => makeExternalSnippet(s, s.file || file, sourceName, sourceId, sourceUrl));
+    }
+
+    // Native VS Code snippet object  { "Snippet Name": { prefix, body, … } }
+    if (data && typeof data === 'object') {
+        const results = [];
+        for (const [name, s] of Object.entries(data)) {
+            if (!s || !s.prefix || !s.body) continue;
+            results.push(makeExternalSnippet({ ...s, name }, file, sourceName, sourceId, sourceUrl));
+        }
+        return results;
+    }
+
+    return [];
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Fetch snippets from a single configured source
+// ───────────────────────────────────────────────────────────────────────────
+
+async function fetchSourceSnippets(source) {
+    const snippets = [];
+    const type     = source.type || detectSourceType(source.url);
+    const auth     = source.token ? { 'Authorization': 'Bearer ' + source.token } : {};
+    const ghHeader = { ...auth, 'Accept': 'application/vnd.github.v3+json' };
+    const sUrl     = source.url;
+
+    try {
+        // ── GitHub repo ────────────────────────────────────────────────
+        if (type === 'github-repo') {
+            const m = source.url.match(/github\.com\/([^/]+)\/([^/#?]+)/);
+            if (!m) return [];
+            const owner  = m[1];
+            const repo   = m[2].replace(/\.git$/, '');
+            const branch = source.branch || 'main';
+
+            const treeRes = await httpGet(
+                `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`,
+                ghHeader
+            );
+            if (treeRes.status !== 200) return [];
+
+            const tree      = JSON.parse(treeRes.body);
+            const jsonFiles = (tree.tree || []).filter(f =>
+                f.type === 'blob' &&
+                f.path.endsWith('.json') &&
+                !f.path.includes('node_modules') &&
+                !path.basename(f.path).startsWith('package')
+            );
+
+            for (const file of jsonFiles) {
+                const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${file.path}`;
+                const res    = await httpGet(rawUrl, auth);
+                if (res.status !== 200) continue;
+                snippets.push(...parseSnippetsFromSource(
+                    res.body, path.basename(file.path), source.name, source.id, sUrl
+                ));
+            }
+
+        // ── GitHub Gist ────────────────────────────────────────────────
+        } else if (type === 'github-gist') {
+            const m = source.url.match(/gist\.github\.com\/(?:[^/]+\/)?([a-f0-9]+)/i);
+            if (!m) return [];
+
+            const res  = await httpGet(`https://api.github.com/gists/${m[1]}`, ghHeader);
+            if (res.status !== 200) return [];
+
+            const gist = JSON.parse(res.body);
+            for (const [filename, file] of Object.entries(gist.files || {})) {
+                if (!filename.endsWith('.json')) continue;
+                let content = file.content;
+                if (!content || file.truncated) {
+                    const r = await httpGet(file.raw_url, auth);
+                    content = r.body;
+                }
+                snippets.push(...parseSnippetsFromSource(content, filename, source.name, source.id, sUrl));
+            }
+
+        // ── Local folder ───────────────────────────────────────────────
+        } else if (type === 'local') {
+            const dir = source.url.replace(/^~/, os.homedir());
+            if (!fs.existsSync(dir)) return [];
+            const files = fs.readdirSync(dir).filter(f => f.endsWith('.json'));
+            for (const file of files) {
+                const content = fs.readFileSync(path.join(dir, file), 'utf8');
+                snippets.push(...parseSnippetsFromSource(content, file, source.name, source.id, sUrl));
+            }
+
+        // ── HTTP / local server ────────────────────────────────────────
+        } else if (type === 'http') {
+            if (source.url.endsWith('.json')) {
+                // Direct JSON file URL
+                const res = await httpGet(source.url, auth);
+                if (res.status === 200) {
+                    snippets.push(...parseSnippetsFromSource(
+                        res.body, path.basename(source.url), source.name, source.id, sUrl
+                    ));
+                }
+            } else {
+                // Folder — expects an index.json listing filenames
+                const base     = source.url.replace(/\/?$/, '/');
+                const indexRes = await httpGet(base + 'index.json', auth);
+                if (indexRes.status === 200) {
+                    let index;
+                    try { index = JSON.parse(indexRes.body); } catch (_) { return []; }
+                    const files = Array.isArray(index) ? index : (index.files || []);
+                    for (const file of files) {
+                        const res = await httpGet(base + file, auth);
+                        if (res.status !== 200) continue;
+                        snippets.push(...parseSnippetsFromSource(
+                            res.body, path.basename(String(file)), source.name, source.id, sUrl
+                        ));
+                    }
+                }
+            }
+        }
+    } catch (_) {}
+
+    return snippets;
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// External snippet cache (5-minute TTL, force-invalidated on source changes)
+// ───────────────────────────────────────────────────────────────────────────
+
+let _externalSnippets  = [];
+let _externalCacheTime = 0;
+const EXTERNAL_CACHE_TTL = 5 * 60 * 1000;
+
+async function getExternalSnippets(force = false) {
+    if (!force && Date.now() - _externalCacheTime < EXTERNAL_CACHE_TTL) {
+        return _externalSnippets;
+    }
+    const sources = readSources().filter(s => s.enabled !== false);
+    if (!sources.length) {
+        _externalSnippets  = [];
+        _externalCacheTime = Date.now();
+        return [];
+    }
+    const all = [];
+    for (const source of sources) {
+        try { all.push(...(await fetchSourceSnippets(source))); } catch (_) {}
+    }
+    // Filter out snippets the user has explicitly dismissed
+    const dismissed    = getDismissed();
+    _externalSnippets  = dismissed.size ? all.filter(s => !dismissed.has(s.dismissKey)) : all;
+    _externalCacheTime = Date.now();
+    return _externalSnippets;
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -242,8 +521,9 @@ function loadAllSnippets() {
     try {
         files = fs.readdirSync(dir).filter(f =>
             (f.endsWith('.json') || f.endsWith('.code-snippets')) &&
-            f !== 'keyword-expander-tags.json' &&
-            f !== 'keyword-expander-meta.json'   // skip our own sidecars
+            f !== 'keyword-expander-tags.json'    &&
+            f !== 'keyword-expander-meta.json'    &&
+            f !== 'keyword-expander-sources.json'   // skip all sidecars
         );
     } catch (_) { return list; }
 
@@ -299,7 +579,8 @@ function loadAllSnippets() {
 // Activate
 // ───────────────────────────────────────────────────────────────────────────
 
-let _panel = null;
+let _panel        = null;
+let _pollInterval = null;
 
 // ───────────────────────────────────────────────────────────────────────────
 // Auto-updater  (git clone installs only)
@@ -597,11 +878,12 @@ function openEditor() {
 
     _panel.webview.html = getWebviewHtml();
 
-    function push() {
+    async function push(forceExternal = false) {
         if (!_panel) return;
+        const external = await getExternalSnippets(forceExternal);
         _panel.webview.postMessage({
             type:        'load',
-            snippets:    loadAllSnippets(),
+            snippets:    [...loadAllSnippets(), ...external],
             snippetsDir: getSnippetsDir(),
             languages:   LANGUAGES,
         });
@@ -863,10 +1145,150 @@ function openEditor() {
                 trackUsage(msg.id);
                 break;
             }
+            case 'hideExternal': {
+                addDismissed(msg.dismissKey);
+                // Remove from in-memory cache immediately so it vanishes without a full re-fetch
+                _externalSnippets = _externalSnippets.filter(s => s.dismissKey !== msg.dismissKey);
+                push();
+                break;
+            }
+
+            case 'refreshSources': {
+                _externalCacheTime = 0;
+                if (_panel) _panel.webview.postMessage({ type: 'sourcesLoading' });
+                await push(true);
+                break;
+            }
+
+            case 'manageSources': {
+                const sources = readSources();
+
+                // ── Step 1: show source list + actions ─────────────────
+                const dismissed  = getDismissed();
+                const listItems = [
+                    ...sources.map(s => ({
+                        label:       (s.enabled !== false ? '$(cloud)' : '$(circle-slash)') + '  ' + s.name,
+                        description: s.url,
+                        detail:      (s.type || detectSourceType(s.url) || 'unknown') +
+                                     (s.enabled !== false ? '' : '  —  disabled'),
+                        _source:     s,
+                        _action:     'toggle',
+                    })),
+                    { label: '', kind: vscode.QuickPickItemKind.Separator },
+                    { label: '$(add)  Add New Source',    _action: 'add'    },
+                    { label: '$(trash)  Remove a Source', _action: 'remove' },
+                    ...(dismissed.size ? [{ label: `$(eye)  Show ${dismissed.size} hidden snippet${dismissed.size !== 1 ? 's' : ''}`, _action: 'clearHidden' }] : []),
+                ];
+
+                const pick = await vscode.window.showQuickPick(listItems, {
+                    title:       'Keyword Expander — External Sources',
+                    placeHolder: sources.length
+                        ? 'Select a source to toggle on/off, or add/remove'
+                        : 'No external sources — add one to get started',
+                    matchOnDescription: true,
+                });
+                if (!pick) break;
+
+                // ── Clear hidden snippets ──────────────────────────────
+                if (pick._action === 'clearHidden') {
+                    clearDismissed();
+                    _externalCacheTime = 0;
+                    await push(true);
+                    break;
+                }
+
+                // ── Toggle enabled ─────────────────────────────────────
+                if (pick._action === 'toggle' && pick._source) {
+                    const idx = sources.findIndex(s => s.id === pick._source.id);
+                    if (idx !== -1) {
+                        sources[idx].enabled = !(sources[idx].enabled !== false);
+                        writeSources(sources);
+                        _externalCacheTime = 0;
+                        await push(true);
+                    }
+                    break;
+                }
+
+                // ── Add new source ─────────────────────────────────────
+                if (pick._action === 'add') {
+                    const url = await vscode.window.showInputBox({
+                        title:       'Add External Source (1/3)',
+                        prompt:      'URL or local path',
+                        placeHolder: 'https://github.com/user/repo  ·  gist.github.com/user/id  ·  /local/path  ·  https://server/snippets/',
+                        ignoreFocusOut: true,
+                    });
+                    if (!url) break;
+
+                    const detectedType = detectSourceType(url);
+                    const name = await vscode.window.showInputBox({
+                        title:       'Add External Source (2/3)',
+                        prompt:      'Display name for this source',
+                        placeHolder: 'e.g. Team Snippets',
+                        ignoreFocusOut: true,
+                    });
+                    if (!name) break;
+
+                    let token = '';
+                    if (detectedType === 'github-repo' || detectedType === 'github-gist') {
+                        token = await vscode.window.showInputBox({
+                            title:          'Add External Source (3/3)',
+                            prompt:         'GitHub Personal Access Token — required for private repos/gists, leave blank for public',
+                            placeHolder:    'ghp_…  or leave blank',
+                            password:       true,
+                            ignoreFocusOut: true,
+                        }) || '';
+                    }
+
+                    sources.push({
+                        id:      Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+                        name,
+                        type:    detectedType,
+                        url:     url.trim(),
+                        token,
+                        enabled: true,
+                    });
+                    writeSources(sources);
+                    _externalCacheTime = 0;
+
+                    vscode.window.showInformationMessage(`Keyword Expander: Source "${name}" added. Fetching…`);
+                    if (_panel) _panel.webview.postMessage({ type: 'sourcesLoading' });
+                    await push(true);
+                    break;
+                }
+
+                // ── Remove source ──────────────────────────────────────
+                if (pick._action === 'remove') {
+                    if (!sources.length) {
+                        vscode.window.showInformationMessage('No sources to remove.');
+                        break;
+                    }
+                    const toRemove = await vscode.window.showQuickPick(
+                        sources.map(s => ({ label: s.name, description: s.url, _id: s.id })),
+                        { title: 'Remove External Source', placeHolder: 'Select source to remove' }
+                    );
+                    if (!toRemove) break;
+                    writeSources(sources.filter(s => s.id !== toRemove._id));
+                    _externalCacheTime = 0;
+                    await push(true);
+                }
+                break;
+            }
         }
     });
 
-    _panel.onDidDispose(() => { _panel = null; });
+    _panel.onDidDispose(() => {
+        _panel = null;
+        clearInterval(_pollInterval);
+        _pollInterval = null;
+    });
+
+    // Poll external sources every 10 minutes while the panel is open
+    // so team-added snippets appear automatically without manual refresh.
+    _pollInterval = setInterval(async () => {
+        if (!_panel) return;
+        _externalCacheTime = 0;
+        await push(true);
+    }, 10 * 60 * 1000);
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -1459,6 +1881,34 @@ textarea{
 }
 .snippet-item:hover .uses-badge,
 .snippet-item.active .uses-badge{opacity:0.6;}
+
+/* ── External source badge (sidebar) ─────────────────────────── */
+.source-badge{
+  font-size:9px;
+  background:var(--vscode-inputValidation-infoBorder,#007acc);
+  color:#fff;opacity:0.75;
+  padding:1px 5px;border-radius:8px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:65px;
+  flex-shrink:0;
+}
+.snippet-item.active .source-badge,.snippet-item:hover .source-badge{opacity:1;}
+
+/* ── Read-only banner (form) ──────────────────────────────────── */
+.readonly-bar{
+  display:flex;align-items:center;gap:10px;
+  padding:7px 10px;
+  background:var(--vscode-inputValidation-infoBackground,rgba(0,120,212,0.1));
+  border:1px solid var(--vscode-inputValidation-infoBorder,#007acc);
+  border-radius:3px;flex-shrink:0;font-size:11px;
+}
+.readonly-bar-icon{opacity:0.7;flex-shrink:0;}
+.readonly-bar-text{flex:1;opacity:0.8;}
+.edit-form.is-readonly input,
+.edit-form.is-readonly select,
+.edit-form.is-readonly textarea{
+  opacity:0.65;pointer-events:none;
+  background:var(--vscode-editor-background);
+}
 </style>
 </head>
 <body>
@@ -1469,6 +1919,7 @@ textarea{
   <div class="header-actions">
     <button class="btn btn-secondary" onclick="importSnippets()">&#8657;&nbsp; Import</button>
     <button class="btn btn-secondary" onclick="openExamplePicker()">&#9733;&nbsp; Examples</button>
+    <button class="btn btn-secondary" onclick="manageSources()">&#9729;&nbsp; Sources</button>
     <button class="btn btn-secondary" onclick="exportAll()">&#8659;&nbsp; Export All</button>
     <button class="btn btn-secondary" onclick="refresh()">&#8635; Refresh</button>
     <button class="btn btn-secondary" onclick="newSnippet()">&#65291; New Snippet</button>
@@ -1513,6 +1964,13 @@ textarea{
 
     <!-- Edit form -->
     <div class="edit-form" id="editForm">
+
+      <!-- Read-only banner (external snippets) -->
+      <div class="readonly-bar" id="readonlyBar" style="display:none">
+        <span class="readonly-bar-icon">&#9729;</span>
+        <span class="readonly-bar-text" id="readonlyBarText">External snippet — read only</span>
+        <button class="btn btn-secondary" style="font-size:11px;padding:3px 10px" onclick="saveAsLocal()">Save as Local Copy</button>
+      </div>
 
       <div class="form-grid">
 
@@ -1576,7 +2034,7 @@ textarea{
         <div class="spacer"></div>
         <button class="btn btn-secondary" id="exportBtn" onclick="exportCurrentSnippet()" style="display:none">&#8659;&nbsp; Export</button>
         <button class="btn btn-secondary" onclick="previewSnippet()">&#9654;&nbsp; Preview in Editor</button>
-        <button class="btn" onclick="saveSnippet()">Save Snippet</button>
+        <button class="btn" id="saveBtn" onclick="saveSnippet()">Save Snippet</button>
       </div>
 
     </div><!-- /.edit-form -->
@@ -1604,6 +2062,7 @@ var state = {
   snippetsDir: '',
   selectedId:  null,
   isNew:       false,
+  isReadonly:  false,
   // what was in the form before editing (to detect file/name moves)
   originalFile: null,
   originalName: null,
@@ -1631,6 +2090,10 @@ window.addEventListener('message', function(event) {
   }
   if (msg.type === 'importDone') {
     showToast('Imported ' + msg.count + ' snippet' + (msg.count !== 1 ? 's' : '') + '.');
+    return;
+  }
+  if (msg.type === 'sourcesLoading') {
+    setStatus('Fetching external sources…');
     return;
   }
   if (msg.type === 'prefill') {
@@ -1786,15 +2249,23 @@ function renderItem(s, sortMode) {
     usesBadge = '<span class="uses-badge">' + s.uses + 'x</span>';
   }
 
+  var sourceBadge = '';
+  if (s.readonly && s.sourceName) {
+    sourceBadge = '<span class="source-badge" title="' + esc(s.sourceName) + '">' + esc(s.sourceName) + '</span>';
+  }
+
   return '<div class="snippet-item' + active + '" data-id="' + esc(s.id) + '">' +
     '<button class="fav-btn' + favClass + '" title="' + (s.favourite ? 'Remove favourite' : 'Add to favourites') + '" data-id="' + esc(s.id) + '">&#9733;</button>' +
     '<span class="kw-badge" title="' + esc(s.prefix) + '">' + esc(s.prefix) + '</span>' +
     '<span class="item-name">' + esc(s.name) + '</span>' +
     tagPills +
+    sourceBadge +
     usesBadge +
     '<div class="item-actions">' +
     '<button class="icon-btn exp-btn" title="Export snippet" data-id="' + esc(s.id) + '">&#8659;</button>' +
-    '<button class="icon-btn del-btn" title="Delete" data-id="' + esc(s.id) + '">&#128465;</button>' +
+    (s.readonly
+      ? '<button class="icon-btn hide-btn" title="Hide this snippet" data-id="' + esc(s.id) + '" data-key="' + esc(s.dismissKey || '') + '">&#10005;</button>'
+      : '<button class="icon-btn del-btn" title="Delete" data-id="' + esc(s.id) + '">&#128465;</button>') +
     '</div>' +
     '</div>';
 }
@@ -1820,6 +2291,18 @@ document.getElementById('snippetList').addEventListener('click', function(e) {
     exportSnippet(expBtn.dataset.id);
     return;
   }
+  var hideBtn = e.target.closest('.hide-btn');
+  if (hideBtn) {
+    e.stopPropagation();
+    var id  = hideBtn.dataset.id;
+    var key = hideBtn.dataset.key;
+    // Remove from local state immediately so it vanishes without waiting for push
+    state.snippets = state.snippets.filter(function(x) { return x.id !== id; });
+    if (state.selectedId === id) { state.selectedId = null; hideForm(); }
+    renderList();
+    vscode.postMessage({ type: 'hideExternal', dismissKey: key });
+    return;
+  }
   var delBtn = e.target.closest('.del-btn');
   if (delBtn) {
     e.stopPropagation();
@@ -1835,8 +2318,9 @@ function selectSnippet(id) {
   var s = state.snippets.find(function(x) { return x.id === id; });
   if (!s) return;
 
-  state.selectedId  = id;
-  state.isNew       = false;
+  state.selectedId   = id;
+  state.isNew        = false;
+  state.isReadonly   = !!s.readonly;
   state.originalFile = s.file;
   state.originalName = s.name;
 
@@ -1850,7 +2334,6 @@ function selectSnippet(id) {
   var fileSelect = document.getElementById('fileSelect');
   fileSelect.value = s.file;
   if (fileSelect.value !== s.file) {
-    // Unknown file — add a temporary option
     var opt = document.createElement('option');
     opt.value = s.file; opt.textContent = s.file;
     fileSelect.appendChild(opt);
@@ -1858,8 +2341,24 @@ function selectSnippet(id) {
   }
   updateScopeVisibility();
 
-  document.getElementById('deleteBtn').style.display = '';
-  document.getElementById('exportBtn').style.display = '';
+  var form = document.getElementById('editForm');
+  var bar  = document.getElementById('readonlyBar');
+  if (s.readonly) {
+    form.classList.add('is-readonly');
+    bar.style.display = 'flex';
+    document.getElementById('readonlyBarText').textContent =
+      'External snippet from "' + (s.sourceName || 'unknown') + '" — read only';
+    document.getElementById('deleteBtn').style.display = 'none';
+    document.getElementById('exportBtn').style.display = '';
+    document.getElementById('saveBtn').style.display   = 'none';
+  } else {
+    form.classList.remove('is-readonly');
+    bar.style.display = 'none';
+    document.getElementById('deleteBtn').style.display = '';
+    document.getElementById('exportBtn').style.display = '';
+    document.getElementById('saveBtn').style.display   = '';
+  }
+
   showForm();
   renderList();
 }
@@ -1868,6 +2367,7 @@ function selectSnippet(id) {
 function newSnippet() {
   state.selectedId   = null;
   state.isNew        = true;
+  state.isReadonly   = false;
   state.originalFile = null;
   state.originalName = null;
 
@@ -1878,13 +2378,15 @@ function newSnippet() {
   document.getElementById('bodyInput').value   = '';
   document.getElementById('scopeInput').value  = '';
 
-  // Default file select to first option
   var fileSelect = document.getElementById('fileSelect');
   if (fileSelect.options.length) fileSelect.selectedIndex = 0;
   updateScopeVisibility();
 
+  document.getElementById('editForm').classList.remove('is-readonly');
+  document.getElementById('readonlyBar').style.display = 'none';
   document.getElementById('deleteBtn').style.display = 'none';
   document.getElementById('exportBtn').style.display = 'none';
+  document.getElementById('saveBtn').style.display   = '';
   showForm();
   renderList();
   document.getElementById('nameInput').focus();
@@ -2050,7 +2552,7 @@ function updateScopeVisibility() {
 /* ── Refresh ─────────────────────────────────────────────────────────── */
 function refresh() {
   document.getElementById('snippetList').innerHTML = '<div class="loading-msg">Refreshing&#x2026;</div>';
-  vscode.postMessage({ type: 'refresh' });
+  vscode.postMessage({ type: 'refreshSources' });
 }
 
 /* ── Open snippets folder ────────────────────────────────────────────── */
@@ -2082,6 +2584,35 @@ function importSnippets() {
 /* ── Open example picker (native VS Code QuickPick) ──────────────────── */
 function openExamplePicker() {
   vscode.postMessage({ type: 'importExamples' });
+}
+
+/* ── External sources ────────────────────────────────────────────────── */
+function manageSources() {
+  vscode.postMessage({ type: 'manageSources' });
+}
+
+function refreshSources() {
+  vscode.postMessage({ type: 'refreshSources' });
+}
+
+/* ── Save external snippet as a local copy ───────────────────────────── */
+function saveAsLocal() {
+  var s = state.snippets.find(function(x) { return x.id === state.selectedId; });
+  if (!s) return;
+
+  // Switch form to editable — user can rename/adjust then save normally
+  state.isReadonly   = false;
+  state.originalFile = null;  // treat as new so save doesn't try to delete original
+  state.originalName = null;
+  state.isNew        = true;
+
+  document.getElementById('editForm').classList.remove('is-readonly');
+  document.getElementById('readonlyBar').style.display = 'none';
+  document.getElementById('deleteBtn').style.display   = 'none';
+  document.getElementById('exportBtn').style.display   = 'none';
+  document.getElementById('saveBtn').style.display     = '';
+  document.getElementById('nameInput').focus();
+  setStatus('Edit and save to create a local copy of this snippet.');
 }
 
 /* ── Textarea Tab key ────────────────────────────────────────────────── */
